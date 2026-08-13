@@ -1,0 +1,92 @@
+@import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&family=Manrope:wght@400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* MRV brand: verde institucional + laranja destaque */
+    --background: 0 0% 100%;
+    --foreground: 150 30% 10%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 150 30% 10%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 150 30% 10%;
+
+    /* Primary = verde escuro MRV #006B3F */
+    --primary: 150 100% 21%;
+    --primary-foreground: 0 0% 100%;
+    --primary-glow: 150 92% 32%;
+
+    /* Secondary = verde médio MRV #079D56 */
+    --secondary: 150 92% 32%;
+    --secondary-foreground: 0 0% 100%;
+
+    --muted: 150 20% 95%;
+    --muted-foreground: 150 10% 38%;
+
+    /* Accent = laranja MRV #FF8B22 */
+    --accent: 28 100% 95%;
+    --accent-foreground: 28 100% 35%;
+
+    --success: 160 100% 41%;
+    --success-foreground: 0 0% 100%;
+    --warning: 42 100% 55%;
+    --warning-foreground: 150 40% 12%;
+    --destructive: 0 75% 55%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 150 20% 88%;
+    --input: 150 20% 88%;
+    --ring: 150 100% 21%;
+
+    --radius: 0.75rem;
+
+    --gradient-brand: linear-gradient(135deg, hsl(150 100% 21%), hsl(150 92% 32%));
+    --gradient-deep: linear-gradient(135deg, hsl(150 100% 15%), hsl(150 92% 28%));
+    --gradient-orange: linear-gradient(135deg, hsl(28 100% 56%), hsl(42 100% 55%));
+    --shadow-elegant: 0 10px 30px -12px hsl(150 100% 21% / 0.35);
+    --shadow-card: 0 2px 8px -2px hsl(150 30% 10% / 0.08);
+
+    --sidebar-background: 150 100% 13%;
+    --sidebar-foreground: 0 0% 95%;
+    --sidebar-primary: 28 100% 56%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 150 92% 22%;
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-border: 150 92% 22%;
+    --sidebar-ring: 28 100% 56%;
+  }
+
+  .dark {
+    --background: 150 30% 7%;
+    --foreground: 0 0% 95%;
+    --card: 150 25% 11%;
+    --card-foreground: 0 0% 95%;
+    --popover: 150 25% 11%;
+    --popover-foreground: 0 0% 95%;
+    --primary: 150 92% 32%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 150 60% 22%;
+    --secondary-foreground: 0 0% 95%;
+    --muted: 150 20% 16%;
+    --muted-foreground: 150 10% 65%;
+    --accent: 28 100% 56%;
+    --accent-foreground: 150 30% 10%;
+    --border: 150 20% 20%;
+    --input: 150 20% 20%;
+    --ring: 28 100% 56%;
+  }
+}
+
+@layer base {
+  * { @apply border-border; }
+  body {
+    @apply bg-background text-foreground font-body;
+    font-feature-settings: "ss01","cv11";
+  }
+  h1,h2,h3,h4 { @apply font-display tracking-tight; }
+}
