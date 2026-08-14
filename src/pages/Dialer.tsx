@@ -47,10 +47,10 @@ type QueueItem = Lead & { _done: boolean; _lastCategoria?: MensagemCategoria };
 // ── Templates padrão por categoria (editáveis, persistidos no navegador) ────
 const TEMPLATE_KEY_PREFIX = "enviador_template_";
 const DEFAULT_TEMPLATES: Record<MensagemCategoria, string> = {
-  recompra: "Oi {firstName}! Tudo bem? 💎 Faz um tempinho que você não aparece por aqui na Renata Joias — separei umas peças que combinam com o seu estilo. Bora dar uma olhada?",
-  novidade: "Oi {firstName}! ✨ Chegou novidade na Renata Joias e lembrei de você na hora! Quer que eu te mande fotos das peças novas?",
-  desconto: "Oi {firstName}! 🏷️ Consegui um desconto especial pra você aqui na Renata Joias. Posso te mandar os detalhes?",
-  promocao: "Oi {firstName}! 🔥 Tá rolando uma promoção imperdível na Renata Joias, mas é por tempo limitado. Corre que separei uma coisa pra você!",
+  recompra: "Oi {firstName}! Tudo bem? 💎 Faz um tempinho que você não aparece por aqui na Renata Perfumes — deve estar acabando aquele perfume, né? Separei umas opções pra você. Bora dar uma olhada?",
+  novidade: "Oi {firstName}! ✨ Chegou lançamento na Renata Perfumes e lembrei de você na hora! Quer que eu te mande mais detalhes das fragrâncias novas?",
+  desconto: "Oi {firstName}! 🏷️ Consegui um desconto especial pra você aqui na Renata Perfumes. Posso te mandar os detalhes?",
+  promocao: "Oi {firstName}! 🔥 Tá rolando uma promoção imperdível na Renata Perfumes, mas é por tempo limitado. Corre que separei uma coisa pra você!",
 };
 
 function loadTemplate(cat: MensagemCategoria): string {

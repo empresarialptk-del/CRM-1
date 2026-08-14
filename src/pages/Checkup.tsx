@@ -79,7 +79,7 @@ const CHECKUP_CATEGORIES: CheckupCategory[] = [
       { id: 15, desc: "Demonstrou conhecer as características e benefícios do produto oferecido?", pts: 2.0 },
       { id: 16, desc: "Envolveu o cliente com os benefícios do produto e criou telas mentais?", pts: 2.0 },
       { id: 17, desc: "Ajustou os benefícios às necessidades do cliente?", pts: 2.0 },
-      { id: 18, desc: "Apresentou os benefícios da Renata Joias?", pts: 1.0 },
+      { id: 18, desc: "Apresentou os benefícios da Renata Perfumes?", pts: 1.0 },
       { id: 19, desc: "Demonstrou conhecimento da concorrência e da região?", pts: 1.0 },
       { id: 20, desc: "Transmitiu entusiasmo na sua apresentação?", pts: 1.0 },
     ],
@@ -95,7 +95,7 @@ const CHECKUP_CATEGORIES: CheckupCategory[] = [
       { id: 22, desc: "Pesquisou a objeção devolvendo-a para o cliente em forma de pergunta?", pts: 2.0 },
       { id: 23, desc: "Criou uma linha de argumentação capaz de neutralizar as objeções?", pts: 2.0 },
       { id: 24, desc: "Foi persistente buscando superar as objeções, demonstrando controle da situação?", pts: 2.0 },
-      { id: 25, desc: "Foi convincente nos argumentos, reforçando os benefícios do produto e/ou da Renata Joias?", pts: 3.0 },
+      { id: 25, desc: "Foi convincente nos argumentos, reforçando os benefícios do produto e/ou da Renata Perfumes?", pts: 3.0 },
     ],
   },
   {

@@ -5,7 +5,7 @@
 import { toast } from "sonner";
 
 export function useVisitor() {
-  const isVisitor = localStorage.getItem("renatajoias_visitor") === "true";
+  const isVisitor = localStorage.getItem("renataperfumes_visitor") === "true";
 
   function blockIfVisitor(fn?: () => void): boolean {
     if (isVisitor) {

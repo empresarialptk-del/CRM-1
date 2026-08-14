@@ -689,3 +689,48 @@ export const MENSAGEM_STATUS_CONTATO_EMOJI: Record<MensagemStatusContato, string
   respondida: "✅",
   sem_retorno: "🚫",
 };
+
+// ══════════════════════════════════════════════════════════════════════════════
+// SEGMENTAÇÃO POR TICKET — calculada a partir do histórico de compras (tabela
+// `compras`). As faixas de valor são configuráveis em Configurações
+// (UserProfile.ticketAltoMin / ticketMedioMin).
+// ══════════════════════════════════════════════════════════════════════════════
+export type TicketTier = "alto" | "medio" | "baixo" | "sem_compras";
+
+export const TICKET_TIER_LABELS: Record<TicketTier, string> = {
+  alto: "Ticket alto",
+  medio: "Ticket médio",
+  baixo: "Ticket baixo",
+  sem_compras: "Sem compras",
+};
+
+export const TICKET_TIER_COLOR: Record<TicketTier, string> = {
+  alto: "bg-emerald-100 text-emerald-700",
+  medio: "bg-amber-100 text-amber-700",
+  baixo: "bg-slate-100 text-slate-600",
+  sem_compras: "bg-muted text-muted-foreground",
+};
+
+export const TICKET_TIER_EMOJI: Record<TicketTier, string> = {
+  alto: "💎",
+  medio: "🏷️",
+  baixo: "🪙",
+  sem_compras: "—",
+};
+
+/** ticketMedio = valor médio por compra do lead (null se nunca comprou). */
+export function classifyTicketTier(ticketMedio: number | null, thresholds: { ticketAltoMin: number; ticketMedioMin: number }): TicketTier {
+  if (ticketMedio === null) return "sem_compras";
+  if (ticketMedio >= thresholds.ticketAltoMin) return "alto";
+  if (ticketMedio >= thresholds.ticketMedioMin) return "medio";
+  return "baixo";
+}
+
+export type CompraResumo = { totalGasto: number; qtdCompras: number; ticketMedio: number | null; ultimaCompraEm: string | null };
+
+export function summarizeCompras(compras: { valor: number; quantidade: number; data_compra: string }[]): CompraResumo {
+  if (compras.length === 0) return { totalGasto: 0, qtdCompras: 0, ticketMedio: null, ultimaCompraEm: null };
+  const totalGasto = compras.reduce((a, c) => a + c.valor, 0);
+  const ultimaCompraEm = compras.reduce((max, c) => c.data_compra > max ? c.data_compra : max, compras[0].data_compra);
+  return { totalGasto, qtdCompras: compras.length, ticketMedio: totalGasto / compras.length, ultimaCompraEm };
+}

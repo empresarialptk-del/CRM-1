@@ -274,7 +274,7 @@ export default function Home() {
           </h1>
           <p className="text-muted-foreground text-sm mt-1">
             {new Date().toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long" })}
-            {" · Pedro da Renata Joias"}
+            {" · Pedro da Renata Perfumes"}
           </p>
         </div>
         <div className="flex gap-2">

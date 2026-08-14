@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { loadProfile, saveProfile, resetProfile, type UserProfile } from "@/lib/profile";
 import {
   User, MapPin, Clock, Target, Save, RotateCcw, LogOut,
-  Bell, Settings, CheckCircle2, Palette,
+  Bell, Settings, CheckCircle2, Palette, Gem,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -18,7 +18,7 @@ export default function SettingsPage() {
   const navigate = useNavigate();
   const [profile, setProfile] = useState<UserProfile>(loadProfile);
   const [saved, setSaved] = useState(false);
-  const [activeSection, setActiveSection] = useState<"perfil" | "metas" | "notificacoes" | "conta">("perfil");
+  const [activeSection, setActiveSection] = useState<"perfil" | "metas" | "segmentacao" | "notificacoes" | "conta">("perfil");
 
   function update<K extends keyof UserProfile>(key: K, value: UserProfile[K]) {
     setProfile(p => ({ ...p, [key]: value }));
@@ -41,6 +41,7 @@ export default function SettingsPage() {
   const sections = [
     { key: "perfil",        label: "Perfil",        icon: <User className="h-4 w-4" /> },
     { key: "metas",         label: "Metas",         icon: <Target className="h-4 w-4" /> },
+    { key: "segmentacao",   label: "Segmentação",   icon: <Gem className="h-4 w-4" /> },
     { key: "notificacoes",  label: "Notificações",  icon: <Bell className="h-4 w-4" /> },
     { key: "conta",         label: "Conta",         icon: <Settings className="h-4 w-4" /> },
   ];
@@ -108,7 +109,7 @@ export default function SettingsPage() {
                       <Input
                         value={profile.empresa}
                         onChange={e => update("empresa", e.target.value)}
-                        placeholder="Ex: Renata Joias"
+                        placeholder="Ex: Renata Perfumes"
                       />
                     </div>
                   </div>
@@ -121,7 +122,7 @@ export default function SettingsPage() {
                     <Input
                       value={profile.endereco}
                       onChange={e => update("endereco", e.target.value)}
-                      placeholder="Ex: Renata Joias — endereço da loja"
+                      placeholder="Ex: Renata Perfumes — endereço da loja"
                     />
                     <p className="text-[11px] text-muted-foreground">
                       Aparece nas mensagens de confirmação de visita pelo WhatsApp
@@ -195,6 +196,46 @@ export default function SettingsPage() {
                       <div className="h-2 bg-muted rounded-full" />
                     </div>
                   ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* ── SEGMENTAÇÃO ── */}
+          {activeSection === "segmentacao" && (
+            <Card className="shadow-card">
+              <CardContent className="p-6 space-y-5">
+                <div className="flex items-center gap-3 mb-2">
+                  <Gem className="h-5 w-5 text-primary" />
+                  <h2 className="font-display font-semibold">Faixas de ticket</h2>
+                </div>
+                <p className="text-sm text-muted-foreground -mt-2">
+                  Definem os grupos automáticos de clientes (Relacionamento) com base no ticket médio de compras.
+                </p>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <Label>💎 Ticket alto a partir de (R$)</Label>
+                    <Input
+                      type="number" min="0" step="10"
+                      value={profile.ticketAltoMin}
+                      onChange={e => update("ticketAltoMin", Number(e.target.value))}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>🏷️ Ticket médio a partir de (R$)</Label>
+                    <Input
+                      type="number" min="0" step="10"
+                      value={profile.ticketMedioMin}
+                      onChange={e => update("ticketMedioMin", Number(e.target.value))}
+                    />
+                  </div>
+                </div>
+
+                <div className="p-3 rounded-lg bg-muted/50 text-xs text-muted-foreground space-y-1">
+                  <p>💎 <strong>Ticket alto</strong>: ticket médio ≥ R$ {profile.ticketAltoMin}</p>
+                  <p>🏷️ <strong>Ticket médio</strong>: ticket médio entre R$ {profile.ticketMedioMin} e R$ {profile.ticketAltoMin}</p>
+                  <p>🪙 <strong>Ticket baixo</strong>: ticket médio abaixo de R$ {profile.ticketMedioMin}</p>
                 </div>
               </CardContent>
             </Card>

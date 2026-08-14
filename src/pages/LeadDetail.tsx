@@ -10,19 +10,22 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import {
   LEAD_STATUS_LABELS, LEAD_STATUS_COLOR, LEAD_STATUSES, LEAD_STATUS_LOST,
   LEAD_FUNNEL_COLUMNS, getLeadFunnelColumn,
   MENSAGEM_CATEGORIA_LABELS, MENSAGEM_CATEGORIA_EMOJI,
   MENSAGEM_STATUS_CONTATO_ORDER, MENSAGEM_STATUS_CONTATO_LABELS, MENSAGEM_STATUS_CONTATO_COLOR, MENSAGEM_STATUS_CONTATO_EMOJI,
-  formatPhone, type MensagemCategoria, type MensagemStatusContato,
+  TICKET_TIER_LABELS, TICKET_TIER_COLOR, TICKET_TIER_EMOJI, classifyTicketTier, summarizeCompras,
+  formatPhone, formatCurrency, type MensagemCategoria, type MensagemStatusContato,
 } from "@/lib/crm";
 import { calcLeadScore, scoreLabel } from "@/lib/leadScore";
+import { loadProfile } from "@/lib/profile";
 import {
   ArrowLeft, Phone, MessageCircle, CalendarDays,
   Pencil, Save, X, Award, CalendarClock,
   ChevronRight, ArrowRight, Trophy, AlertTriangle, History, RotateCcw,
-  FileText, ShieldCheck, UserCircle2, UserPlus,
+  FileText, ShieldCheck, UserCircle2, UserPlus, ShoppingBag, Plus,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -40,6 +43,7 @@ type Mensagem = {
 };
 
 type Profile = { id: string; full_name: string };
+type Compra = { id: string; produto: string; quantidade: number; valor: number; origem: string; data_compra: string };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function toDatetimeLocal(iso: string | null | undefined): string {
@@ -99,6 +103,8 @@ export default function LeadDetail() {
   const [lead, setLead]       = useState<Lead | null>(null);
   const [mensagens, setMensagens] = useState<Mensagem[]>([]);
   const [profiles, setProfiles]   = useState<Profile[]>([]);
+  const [compras, setCompras]     = useState<Compra[]>([]);
+  const [showAddCompra, setShowAddCompra] = useState(false);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing]   = useState(false);
   const [saving, setSaving]     = useState(false);
@@ -117,7 +123,7 @@ export default function LeadDetail() {
   const load = useCallback(async () => {
     if (!id) return;
     setLoading(true);
-    const [{ data: leadData }, { data: msgData }, { data: auditData }, { data: profilesData }] = await Promise.all([
+    const [{ data: leadData }, { data: msgData }, { data: auditData }, { data: profilesData }, { data: comprasData }] = await Promise.all([
       supabase.from("leads").select("*").eq("id", id).single(),
       supabase.from("mensagens")
         .select("id,categoria,texto,status_contato,observacao,enviada_em")
@@ -129,6 +135,10 @@ export default function LeadDetail() {
         .order("alterado_em", { ascending: false })
         .limit(100),
       supabase.from("profiles").select("id,full_name").order("full_name", { ascending: true }),
+      supabase.from("compras")
+        .select("id,produto,quantidade,valor,origem,data_compra")
+        .eq("lead_id", id)
+        .order("data_compra", { ascending: false }),
     ]);
     if (leadData) {
       setLead(leadData as Lead);
@@ -141,6 +151,7 @@ export default function LeadDetail() {
     }
     setMensagens((msgData ?? []) as Mensagem[]);
     setAudits((auditData ?? []) as Audit[]);
+    setCompras((comprasData ?? []) as Compra[]);
     setProfiles((profilesData ?? []) as Profile[]);
     setLoading(false);
   }, [id]);
@@ -230,11 +241,30 @@ export default function LeadDetail() {
     setMensagens(prev => prev.map(m => m.id === msg.id ? { ...m, status_contato } : m));
   }
 
+  async function addCompra(patch: { produto: string; quantidade: number; valor: number; origem: string; data_compra: string }) {
+    if (!lead) return;
+    const { data, error } = await supabase.from("compras").insert({
+      lead_id: lead.id,
+      produto: patch.produto,
+      quantidade: patch.quantidade,
+      valor: patch.valor,
+      origem: patch.origem,
+      data_compra: patch.data_compra,
+    }).select("id,produto,quantidade,valor,origem,data_compra").single();
+    if (error) { toast.error(error.message); return; }
+    setCompras(prev => [data as Compra, ...prev].sort((a, b) => b.data_compra.localeCompare(a.data_compra)));
+    setShowAddCompra(false);
+    toast.success("Compra registrada");
+  }
+
   // ── Computados ────────────────────────────────────────────────────────────
   const totalMensagens = mensagens.length;
   const respondidas    = mensagens.filter(m => m.status_contato === "respondida").length;
   const taxaResposta   = totalMensagens > 0 ? Math.round((respondidas / totalMensagens) * 100) : 0;
   const lastMsg         = mensagens[0] ?? null;
+
+  const compraResumo = summarizeCompras(compras);
+  const ticketTier    = classifyTicketTier(compraResumo.ticketMedio, loadProfile());
 
   const checkupNotas = (lead?.observacoes ?? "").split("\n")
     .map(l => { const m = l.match(/\[CHECK-UP ([^\]]+)\] Nota: ([\d.]+)\/10/); return m ? { data: m[1], nota: parseFloat(m[2]) } : null; })
@@ -723,6 +753,54 @@ export default function LeadDetail() {
         {/* ── Coluna lateral ───────────────────────────────────────────── */}
         <div className="space-y-4">
 
+          {/* Compras */}
+          <Card className="shadow-card">
+            <CardContent className="p-5 space-y-3">
+              <div className="flex items-center justify-between">
+                <p className="font-semibold text-sm flex items-center gap-1.5">
+                  <ShoppingBag className="h-4 w-4 text-primary"/> Compras
+                </p>
+                <button onClick={() => setShowAddCompra(true)}
+                  className="h-6 w-6 flex items-center justify-center rounded-lg border border-primary/30 text-primary hover:bg-primary/10 transition-colors">
+                  <Plus className="h-3.5 w-3.5"/>
+                </button>
+              </div>
+
+              <Badge variant="secondary" className={`w-fit ${TICKET_TIER_COLOR[ticketTier]}`}>
+                {TICKET_TIER_EMOJI[ticketTier]} {TICKET_TIER_LABELS[ticketTier]}
+              </Badge>
+
+              <div className="grid grid-cols-2 gap-2 text-center">
+                <div className="p-2 rounded-lg bg-muted/50">
+                  <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Total gasto</p>
+                  <p className="font-bold text-sm tabular-nums">{formatCurrency(compraResumo.totalGasto)}</p>
+                </div>
+                <div className="p-2 rounded-lg bg-muted/50">
+                  <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Ticket médio</p>
+                  <p className="font-bold text-sm tabular-nums">{compraResumo.ticketMedio !== null ? formatCurrency(compraResumo.ticketMedio) : "—"}</p>
+                </div>
+              </div>
+
+              {compras.length === 0 ? (
+                <p className="text-xs text-muted-foreground italic text-center py-2">Nenhuma compra registrada.</p>
+              ) : (
+                <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                  {compras.map(c => (
+                    <div key={c.id} className="flex items-center justify-between gap-2 text-xs p-2 rounded-lg bg-muted/30">
+                      <div className="min-w-0">
+                        <p className="font-medium truncate">{c.produto}{c.quantidade > 1 ? ` ×${c.quantidade}` : ""}</p>
+                        <p className="text-[10px] text-muted-foreground">
+                          {new Date(c.data_compra).toLocaleDateString("pt-BR", { day:"2-digit", month:"2-digit", year:"2-digit" })} · {c.origem}
+                        </p>
+                      </div>
+                      <span className="font-bold tabular-nums shrink-0">{formatCurrency(c.valor)}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
           {/* Score */}
           <Card className={`shadow-card border ${sl.bg}`}>
             <CardContent className="p-5 text-center">
@@ -824,6 +902,77 @@ export default function LeadDetail() {
 
         </div>
       </div>
+
+      {showAddCompra && (
+        <AddCompraDialog onSave={addCompra} onClose={() => setShowAddCompra(false)}/>
+      )}
     </div>
+  );
+}
+
+function AddCompraDialog({ onSave, onClose }: {
+  onSave: (patch: { produto: string; quantidade: number; valor: number; origem: string; data_compra: string }) => void;
+  onClose: () => void;
+}) {
+  const [produto, setProduto]     = useState("");
+  const [quantidade, setQuantidade] = useState(1);
+  const [valor, setValor]         = useState("");
+  const [origem, setOrigem]       = useState("loja");
+  const [data, setData]           = useState(() => new Date().toISOString().slice(0, 10));
+  const [saving, setSaving]       = useState(false);
+
+  async function handleSave() {
+    const v = Number(valor.replace(",", "."));
+    if (!produto.trim() || !v || v <= 0) { toast.error("Preencha produto e valor."); return; }
+    setSaving(true);
+    await onSave({ produto: produto.trim(), quantidade, valor: v, origem, data_compra: new Date(data + "T12:00:00").toISOString() });
+    setSaving(false);
+  }
+
+  return (
+    <Dialog open onOpenChange={o => { if (!o) onClose(); }}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader><DialogTitle>Registrar compra</DialogTitle></DialogHeader>
+        <div className="space-y-3">
+          <div className="space-y-1.5">
+            <Label>Produto</Label>
+            <Input value={produto} onChange={e => setProduto(e.target.value)} placeholder="Ex: Perfume 100ml"/>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label>Quantidade</Label>
+              <Input type="number" min="1" value={quantidade} onChange={e => setQuantidade(Number(e.target.value) || 1)}/>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Valor (R$)</Label>
+              <Input value={valor} onChange={e => setValor(e.target.value)} placeholder="Ex: 129,90"/>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label>Origem</Label>
+              <Select value={origem} onValueChange={setOrigem}>
+                <SelectTrigger><SelectValue/></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="loja">Loja física</SelectItem>
+                  <SelectItem value="nuvemshop">Nuvemshop</SelectItem>
+                  <SelectItem value="quiosque">Quiosque</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Data</Label>
+              <Input type="date" value={data} onChange={e => setData(e.target.value)}/>
+            </div>
+          </div>
+        </div>
+        <DialogFooter className="mt-2">
+          <button onClick={onClose} className="px-4 py-2 text-sm rounded-lg border hover:bg-muted transition-colors flex items-center gap-1.5">
+            <X className="h-3.5 w-3.5"/> Cancelar
+          </button>
+          <Button onClick={handleSave} disabled={saving}>{saving ? "Salvando…" : "Registrar"}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
