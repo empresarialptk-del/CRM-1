@@ -8,12 +8,13 @@ import {
   formatPhone, formatCurrency,
   LEAD_FUNNEL_COLUMNS, LEAD_STATUS_LOST, LEAD_STATUS_LABELS, getLeadFunnelColumn,
   MENSAGEM_STATUS_CONTATO_LABELS, MENSAGEM_STATUS_CONTATO_COLOR, MENSAGEM_STATUS_CONTATO_EMOJI,
+  daysUntilBirthday, estimateNextPurchase,
   type MensagemStatusContato,
 } from "@/lib/crm";
 import {
   MessageCircle, CalendarDays, ChevronRight,
   Zap, AlertTriangle, CheckCircle2, TrendingUp, Bell,
-  RefreshCw, Target, ShoppingBag, History, Gem, Kanban,
+  RefreshCw, Target, ShoppingBag, History, Gem, Kanban, Cake, RotateCcw,
 } from "lucide-react";
 
 // ── Tipos ─────────────────────────────────────────────────────────────────────
@@ -21,6 +22,8 @@ type Lead = {
   id: string; nome: string; telefone: string; status: string;
   proximo_followup: string | null; observacoes: string | null;
 };
+
+type Aniversariante = { id: string; nome: string; telefone: string; diasAte: number };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function greeting(nome: string) {
@@ -65,6 +68,8 @@ export default function Home() {
   const [proximosFollowups, setProximosFollowups] = useState<Lead[]>([]);
   const [vencidos, setVencidos]   = useState<Lead[]>([]);
   const [semRetorno, setSemRetorno] = useState<(Lead & { statusContato: MensagemStatusContato })[]>([]);
+  const [aniversariantes, setAniversariantes] = useState<Aniversariante[]>([]);
+  const [recompraHoje, setRecompraHoje] = useState<Lead[]>([]);
   const fds = isFimDeSemana();
 
   const load = useCallback(async () => {
@@ -82,6 +87,8 @@ export default function Home() {
       { data: proximosData },
       { data: vencidosData },
       { data: msgTodasData },
+      { data: leadsAniversarioData },
+      { data: comprasTodasData },
     ] = await Promise.all([
       // Mensagens enviadas por mim hoje
       supabase.from("mensagens")
@@ -126,6 +133,12 @@ export default function Home() {
       supabase.from("mensagens")
         .select("lead_id,status_contato,enviada_em")
         .order("enviada_em", { ascending: false }),
+
+      // Leads com aniversário cadastrado
+      supabase.from("leads").select("id,nome,telefone,data_nascimento").not("data_nascimento", "is", null),
+
+      // Histórico de compras de todo mundo — pra estimar recompra prevista hoje
+      supabase.from("compras").select("lead_id,data_compra"),
     ]);
 
     const msgsHoje = msgHojeData ?? [];
@@ -156,6 +169,39 @@ export default function Home() {
       setSemRetorno(((leadsSemRetorno ?? []) as Lead[]).map(l => ({ ...l, statusContato: "sem_retorno" as MensagemStatusContato })));
     } else {
       setSemRetorno([]);
+    }
+
+    // ── Aniversariantes de hoje/semana ───────────────────────────────────────
+    const aniversariantesList: Aniversariante[] = [];
+    for (const l of (leadsAniversarioData ?? []) as { id: string; nome: string; telefone: string; data_nascimento: string }[]) {
+      const diasAte = daysUntilBirthday(l.data_nascimento);
+      if (diasAte === null || diasAte > 7) continue;
+      aniversariantesList.push({ id: l.id, nome: l.nome, telefone: l.telefone, diasAte });
+    }
+    aniversariantesList.sort((a, b) => a.diasAte - b.diasAte);
+    setAniversariantes(aniversariantesList);
+
+    // ── Recompra prevista pra hoje (média de intervalo entre compras do lead) ─
+    const comprasByLead = new Map<string, { data_compra: string }[]>();
+    for (const c of (comprasTodasData ?? []) as { lead_id: string; data_compra: string }[]) {
+      const arr = comprasByLead.get(c.lead_id) ?? [];
+      arr.push(c);
+      comprasByLead.set(c.lead_id, arr);
+    }
+    const hojeStr = new Date().toDateString();
+    const recompraHojeIds: string[] = [];
+    for (const [leadId, comprasLead] of comprasByLead) {
+      const est = estimateNextPurchase(comprasLead);
+      if (!est.proximaDataEstimada) continue;
+      if (new Date(est.proximaDataEstimada).toDateString() === hojeStr) recompraHojeIds.push(leadId);
+    }
+    if (recompraHojeIds.length > 0) {
+      const { data: leadsRecompra } = await supabase.from("leads")
+        .select("id,nome,telefone,status,proximo_followup,observacoes")
+        .in("id", recompraHojeIds);
+      setRecompraHoje((leadsRecompra ?? []) as Lead[]);
+    } else {
+      setRecompraHoje([]);
     }
 
     // ── Distribuição por etapa do funil (contagem direta, todos os leads) ──
@@ -460,6 +506,82 @@ export default function Home() {
         </Card>
 
       </div>
+
+      {/* ── Aniversariantes + Recompra prevista hoje ─────────────────────── */}
+      {(aniversariantes.length > 0 || recompraHoje.length > 0) && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+
+          {aniversariantes.length > 0 && (
+            <Card className="shadow-card">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="font-semibold text-sm flex items-center gap-2">
+                    <Cake className="h-4 w-4 text-pink-600"/>
+                    Aniversariantes
+                    <span className="text-xs font-bold px-1.5 py-0.5 rounded-full bg-pink-100 text-pink-700">
+                      {aniversariantes.length}
+                    </span>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  {aniversariantes.map(a => (
+                    <div key={a.id} className="flex items-center gap-3 p-3 rounded-xl border border-transparent bg-muted/30 hover:bg-muted/50 transition-colors">
+                      <div className="h-8 w-8 rounded-full flex items-center justify-center text-sm shrink-0 bg-pink-100 text-pink-700">🎂</div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-semibold text-sm truncate">{a.nome}</p>
+                        <p className="text-xs text-muted-foreground">{formatPhone(a.telefone)}</p>
+                      </div>
+                      <span className={`text-xs font-bold shrink-0 ${a.diasAte === 0 ? "text-pink-600" : "text-muted-foreground"}`}>
+                        {a.diasAte === 0 ? "Hoje! 🎉" : `em ${a.diasAte}d`}
+                      </span>
+                      <button onClick={() => navigate(`/dialer?lead=${a.id}`)}
+                        className="h-8 w-8 rounded-lg flex items-center justify-center bg-background border hover:bg-muted transition-colors shrink-0">
+                        <MessageCircle className="h-3.5 w-3.5 text-muted-foreground"/>
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {recompraHoje.length > 0 && (
+            <Card className="shadow-card">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="font-semibold text-sm flex items-center gap-2">
+                    <RotateCcw className="h-4 w-4 text-sky-600"/>
+                    Recompra prevista hoje
+                    <span className="text-xs font-bold px-1.5 py-0.5 rounded-full bg-sky-100 text-sky-700">
+                      {recompraHoje.length}
+                    </span>
+                  </div>
+                  <button onClick={() => navigate("/relacionamento")}
+                    className="text-xs text-primary hover:underline flex items-center gap-1">
+                    Ver todos <ChevronRight className="h-3 w-3"/>
+                  </button>
+                </div>
+                <div className="space-y-2">
+                  {recompraHoje.map(lead => (
+                    <div key={lead.id} className="flex items-center gap-3 p-3 rounded-xl border border-transparent bg-muted/30 hover:bg-muted/50 transition-colors">
+                      <div className="h-8 w-8 rounded-full flex items-center justify-center text-sm shrink-0 bg-sky-100 text-sky-700">💎</div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-semibold text-sm truncate">{lead.nome}</p>
+                        <p className="text-xs text-muted-foreground">{formatPhone(lead.telefone)}</p>
+                      </div>
+                      <button onClick={() => navigate(`/dialer?lead=${lead.id}`)}
+                        className="h-8 w-8 rounded-lg flex items-center justify-center bg-background border hover:bg-muted transition-colors shrink-0">
+                        <MessageCircle className="h-3.5 w-3.5 text-muted-foreground"/>
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+        </div>
+      )}
 
       {/* ── Próximos follow-ups ─────────────────────────────────────────────── */}
       {proximosFollowups.length > 0 && (

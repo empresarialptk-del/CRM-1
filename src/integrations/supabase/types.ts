@@ -181,6 +181,7 @@ export type Database = {
         Row: {
           assigned_to: string | null
           created_at: string
+          data_nascimento: string | null
           gerente: string | null
           id: string
           list_id: string | null
@@ -190,12 +191,14 @@ export type Database = {
           prioridade: number
           proximo_followup: string | null
           status: Database["public"]["Enums"]["lead_status"]
+          tags: string[]
           telefone: string
           updated_at: string
         }
         Insert: {
           assigned_to?: string | null
           created_at?: string
+          data_nascimento?: string | null
           gerente?: string | null
           id?: string
           list_id?: string | null
@@ -205,12 +208,14 @@ export type Database = {
           prioridade?: number
           proximo_followup?: string | null
           status?: Database["public"]["Enums"]["lead_status"]
+          tags?: string[]
           telefone: string
           updated_at?: string
         }
         Update: {
           assigned_to?: string | null
           created_at?: string
+          data_nascimento?: string | null
           gerente?: string | null
           id?: string
           list_id?: string | null
@@ -220,6 +225,7 @@ export type Database = {
           prioridade?: number
           proximo_followup?: string | null
           status?: Database["public"]["Enums"]["lead_status"]
+          tags?: string[]
           telefone?: string
           updated_at?: string
         }

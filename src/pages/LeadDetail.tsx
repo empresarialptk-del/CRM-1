@@ -20,6 +20,7 @@ import {
   PEDIDO_STATUS_PAGAMENTO_ORDER, PEDIDO_STATUS_PAGAMENTO_LABELS, PEDIDO_STATUS_PAGAMENTO_COLOR, PEDIDO_STATUS_PAGAMENTO_EMOJI,
   PEDIDO_STATUS_ENTREGA_ORDER, PEDIDO_STATUS_ENTREGA_LABELS, PEDIDO_STATUS_ENTREGA_COLOR, PEDIDO_STATUS_ENTREGA_EMOJI,
   FORMAS_PAGAMENTO, summarizePedido,
+  estimateNextPurchase, daysUntilBirthday, classificarUrgenciaRecompra, URGENCIA_LABEL, URGENCIA_COLOR,
   formatPhone, formatCurrency, type MensagemCategoria, type MensagemStatusContato,
   type PedidoStatusPagamento, type PedidoStatusEntrega,
 } from "@/lib/crm";
@@ -29,7 +30,7 @@ import {
   ArrowLeft, Phone, MessageCircle, CalendarDays,
   Pencil, Save, X, Award, CalendarClock,
   ChevronRight, ArrowRight, Trophy, AlertTriangle, History, RotateCcw,
-  FileText, ShieldCheck, UserCircle2, UserPlus, ShoppingBag, Plus, Trash2,
+  FileText, ShieldCheck, UserCircle2, UserPlus, ShoppingBag, Plus, Trash2, Cake, Tag,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -39,6 +40,7 @@ type Lead = {
   observacoes: string | null; origem: string | null;
   proximo_followup: string | null; created_at: string; updated_at: string;
   list_id: string | null; assigned_to: string | null;
+  data_nascimento: string | null; tags: string[];
 };
 
 type Mensagem = {
@@ -129,6 +131,9 @@ export default function LeadDetail() {
   const [editObs, setEditObs]           = useState("");
   const [editFollowup, setEditFollowup] = useState("");
   const [editOrigem, setEditOrigem]     = useState("");
+  const [editDataNascimento, setEditDataNascimento] = useState("");
+  const [editTags, setEditTags]         = useState<string[]>([]);
+  const [tagInput, setTagInput]         = useState("");
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -162,6 +167,8 @@ export default function LeadDetail() {
       setEditObs(leadData.observacoes ?? "");
       setEditFollowup(toDatetimeLocal(leadData.proximo_followup));
       setEditOrigem(leadData.origem ?? "");
+      setEditDataNascimento(leadData.data_nascimento ?? "");
+      setEditTags(leadData.tags ?? []);
     }
     setMensagens((msgData ?? []) as Mensagem[]);
     setAudits((auditData ?? []) as Audit[]);
@@ -197,12 +204,24 @@ export default function LeadDetail() {
       observacoes:      editObs.trim() || null,
       proximo_followup: editFollowup ? new Date(editFollowup).toISOString() : null,
       origem:           editOrigem.trim() || null,
+      data_nascimento:  editDataNascimento || null,
+      tags:             editTags,
     }).eq("id", lead.id);
     setSaving(false);
     if (error) { toast.error(error.message); return; }
     toast.success("Lead atualizado!");
     setEditing(false);
     load();
+  }
+
+  function addTag() {
+    const t = tagInput.trim();
+    if (!t || editTags.includes(t)) { setTagInput(""); return; }
+    setEditTags(prev => [...prev, t]);
+    setTagInput("");
+  }
+  function removeTag(t: string) {
+    setEditTags(prev => prev.filter(x => x !== t));
   }
 
   // ── Reverter uma mudança de auditoria ───────────────────────────────────
@@ -325,6 +344,10 @@ export default function LeadDetail() {
   const taxaResposta   = totalMensagens > 0 ? Math.round((respondidas / totalMensagens) * 100) : 0;
   const lastMsg         = mensagens[0] ?? null;
 
+  const diasAteAniversario = lead ? daysUntilBirthday(lead.data_nascimento) : null;
+  const recompraEstimativa = estimateNextPurchase(compras);
+  const recompraUrgencia   = recompraEstimativa.proximaDataEstimada ? classificarUrgenciaRecompra(recompraEstimativa.proximaDataEstimada) : null;
+
   const compraResumo = summarizeCompras(compras);
   const ticketTier    = classifyTicketTier(compraResumo.ticketMedio, loadProfile());
   const itensByPedido = new Map<string, Compra[]>();
@@ -446,9 +469,32 @@ export default function LeadDetail() {
                     <Label>Origem</Label>
                     <Input value={editOrigem} onChange={e => setEditOrigem(e.target.value)} placeholder="ex: manual, site, indicação…"/>
                   </div>
-                  <div className="space-y-1.5 col-span-2">
+                  <div className="space-y-1.5">
+                    <Label>Data de nascimento</Label>
+                    <Input type="date" value={editDataNascimento} onChange={e => setEditDataNascimento(e.target.value)}/>
+                  </div>
+                  <div className="space-y-1.5">
                     <Label>Próximo follow-up</Label>
                     <Input type="datetime-local" value={editFollowup} onChange={e => setEditFollowup(e.target.value)}/>
+                  </div>
+                  <div className="space-y-1.5 col-span-2">
+                    <Label>Tags</Label>
+                    <div className="flex gap-2">
+                      <Input value={tagInput} onChange={e => setTagInput(e.target.value)}
+                        onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); addTag(); } }}
+                        placeholder="Ex: floral, presente, gosta de amostra…"/>
+                      <Button type="button" variant="outline" onClick={addTag}>Adicionar</Button>
+                    </div>
+                    {editTags.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5 pt-1">
+                        {editTags.map(t => (
+                          <Badge key={t} variant="secondary" className="flex items-center gap-1 pr-1">
+                            {t}
+                            <button onClick={() => removeTag(t)} className="hover:text-rose-600 transition-colors"><X className="h-3 w-3"/></button>
+                          </Badge>
+                        ))}
+                      </div>
+                    )}
                   </div>
                   <div className="space-y-1.5 col-span-2">
                     <Label>Observações</Label>
@@ -509,6 +555,16 @@ export default function LeadDetail() {
                         <p className="text-sm font-medium">{lead.origem}</p>
                       </div>
                     )}
+                    {lead.data_nascimento && (
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Aniversário</p>
+                        <p className={`text-sm font-medium flex items-center gap-1.5 ${diasAteAniversario === 0 ? "text-pink-600" : ""}`}>
+                          <Cake className="h-3.5 w-3.5"/>
+                          {new Date(lead.data_nascimento + "T12:00:00").toLocaleDateString("pt-BR", { day:"2-digit", month:"long" })}
+                          {diasAteAniversario === 0 && " 🎉 hoje!"}
+                        </p>
+                      </div>
+                    )}
                     {lead.proximo_followup && (
                       <div className="col-span-2 sm:col-span-3">
                         <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Próximo follow-up</p>
@@ -521,6 +577,15 @@ export default function LeadDetail() {
                       </div>
                     )}
                   </div>
+
+                  {lead.tags.length > 0 && (
+                    <div className="border-t pt-4">
+                      <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2 flex items-center gap-1"><Tag className="h-3 w-3"/> Tags</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {lead.tags.map(t => <Badge key={t} variant="secondary">{t}</Badge>)}
+                      </div>
+                    </div>
+                  )}
 
                   {lead.observacoes && (
                     <div className="border-t pt-4">
@@ -933,6 +998,18 @@ export default function LeadDetail() {
               <p className="text-[10px] text-muted-foreground text-center">
                 {pedidos.length} pedido{pedidos.length === 1 ? "" : "s"} registrado{pedidos.length === 1 ? "" : "s"}
               </p>
+
+              {recompraEstimativa.proximaDataEstimada && recompraUrgencia && (
+                <div className="border-t pt-3">
+                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Próxima recompra estimada</p>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-sm font-medium">
+                      {new Date(recompraEstimativa.proximaDataEstimada).toLocaleDateString("pt-BR", { day:"2-digit", month:"long" })}
+                    </span>
+                    <Badge variant="secondary" className={URGENCIA_COLOR[recompraUrgencia]}>{URGENCIA_LABEL[recompraUrgencia]}</Badge>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
 

@@ -11,12 +11,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import {
   EVENTO_CALENDARIO_TIPOS, EVENTO_CALENDARIO_LABELS, EVENTO_CALENDARIO_COLOR, EVENTO_CALENDARIO_EMOJI,
-  MENSAGEM_CATEGORIA_EMOJI, TICKET_TIER_LABELS, TICKET_TIER_EMOJI,
+  MENSAGEM_CATEGORIA_EMOJI, TICKET_TIER_LABELS, TICKET_TIER_EMOJI, estimateNextPurchase,
   formatCurrency, type EventoCalendarioTipo, type MensagemCategoria, type TicketTier,
 } from "@/lib/crm";
 import {
   ChevronLeft, ChevronRight, CalendarDays, Plus, MessageCircle, ShoppingBag,
-  X, Trash2, Users,
+  X, Trash2, Users, Cake, Gem,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -26,6 +26,7 @@ type Evento = {
 };
 type LeadList = { id: string; nome: string };
 type DayStats = { total: number; byCategoria: Partial<Record<MensagemCategoria, number>>; comprasTotal: number; comprasValor: number };
+type DiaLead = { id: string; nome: string };
 
 const WEEKDAYS = ["Dom","Seg","Ter","Qua","Qui","Sex","Sáb"];
 const MONTHS = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
@@ -48,6 +49,8 @@ export default function Calendario() {
   const [viewYear, setViewYear]   = useState(new Date().getFullYear());
   const [viewMonth, setViewMonth] = useState(new Date().getMonth());
   const [statsByDay, setStatsByDay] = useState<Map<string, DayStats>>(new Map());
+  const [birthdaysByDay, setBirthdaysByDay] = useState<Map<string, DiaLead[]>>(new Map());
+  const [recompraByDay, setRecompraByDay]   = useState<Map<string, DiaLead[]>>(new Map());
   const [eventos, setEventos]     = useState<Evento[]>([]);
   const [lists, setLists]         = useState<LeadList[]>([]);
   const [loading, setLoading]     = useState(true);
@@ -60,7 +63,21 @@ export default function Calendario() {
     const monthStart = new Date(viewYear, viewMonth, 1);
     const monthEnd   = new Date(viewYear, viewMonth + 1, 0, 23, 59, 59, 999);
 
-    const [{ data: msgData }, { data: comprasData }, { data: eventosData }, { data: listsData }] = await Promise.all([
+    const fetchAllLeadsBasic = async () => {
+      let all: { id: string; nome: string; data_nascimento: string | null }[] = [];
+      let from = 0;
+      const size = 1000;
+      while (true) {
+        const { data, error } = await supabase.from("leads").select("id,nome,data_nascimento").range(from, from + size - 1);
+        if (error || !data || data.length === 0) break;
+        all = [...all, ...data];
+        if (data.length < size) break;
+        from += size;
+      }
+      return all;
+    };
+
+    const [{ data: msgData }, { data: comprasData }, { data: eventosData }, { data: listsData }, leadsData, { data: comprasTodasData }] = await Promise.all([
       supabase.from("mensagens").select("categoria,enviada_em")
         .gte("enviada_em", monthStart.toISOString()).lte("enviada_em", monthEnd.toISOString()),
       supabase.from("compras").select("valor,data_compra")
@@ -68,6 +85,8 @@ export default function Calendario() {
       supabase.from("eventos_calendario").select("id,titulo,tipo,descricao,data,data_fim,alvo_list_id,alvo_ticket_tier")
         .order("data", { ascending: true }),
       supabase.from("lead_lists").select("id,nome").order("created_at", { ascending: false }),
+      fetchAllLeadsBasic(),
+      supabase.from("compras").select("lead_id,data_compra"),
     ]);
 
     const map = new Map<string, DayStats>();
@@ -85,8 +104,44 @@ export default function Calendario() {
       cur.comprasValor += c.valor;
       map.set(key, cur);
     }
-
     setStatsByDay(map);
+
+    // ── Aniversários que caem no mês visível ────────────────────────────────
+    const bMap = new Map<string, DiaLead[]>();
+    for (const l of leadsData) {
+      if (!l.data_nascimento) continue;
+      const b = new Date(l.data_nascimento + "T12:00:00");
+      if (b.getMonth() !== viewMonth) continue;
+      const key = dateKey(new Date(viewYear, viewMonth, b.getDate()));
+      const arr = bMap.get(key) ?? [];
+      arr.push({ id: l.id, nome: l.nome });
+      bMap.set(key, arr);
+    }
+    setBirthdaysByDay(bMap);
+
+    // ── Recompra prevista que cai no mês visível (intervalo médio do lead) ──
+    const leadById = new Map(leadsData.map(l => [l.id, l]));
+    const comprasByLead = new Map<string, { data_compra: string }[]>();
+    for (const c of (comprasTodasData ?? []) as { lead_id: string; data_compra: string }[]) {
+      const arr = comprasByLead.get(c.lead_id) ?? [];
+      arr.push(c);
+      comprasByLead.set(c.lead_id, arr);
+    }
+    const rMap = new Map<string, DiaLead[]>();
+    for (const [leadId, comprasLead] of comprasByLead) {
+      const est = estimateNextPurchase(comprasLead);
+      if (!est.proximaDataEstimada) continue;
+      const d = new Date(est.proximaDataEstimada);
+      if (d.getFullYear() !== viewYear || d.getMonth() !== viewMonth) continue;
+      const lead = leadById.get(leadId);
+      if (!lead) continue;
+      const key = dateKey(d);
+      const arr = rMap.get(key) ?? [];
+      arr.push({ id: leadId, nome: lead.nome });
+      rMap.set(key, arr);
+    }
+    setRecompraByDay(rMap);
+
     setEventos((eventosData ?? []) as Evento[]);
     setLists((listsData ?? []) as LeadList[]);
     setLoading(false);
@@ -163,6 +218,8 @@ export default function Calendario() {
             const key = dateKey(day);
             const stats = statsByDay.get(key);
             const dayEventos = eventos.filter(e => eventCoversDay(e, key));
+            const dayAniversariantes = birthdaysByDay.get(key) ?? [];
+            const dayRecompras = recompraByDay.get(key) ?? [];
             const isToday = isSameDay(day, today);
             return (
               <button key={i} onClick={() => setSelectedDay(day)}
@@ -178,6 +235,16 @@ export default function Calendario() {
                 {stats && stats.comprasTotal > 0 && (
                   <span className="flex items-center gap-1 text-[10px] text-emerald-600 font-medium">
                     <ShoppingBag className="h-2.5 w-2.5"/> {formatCurrency(stats.comprasValor)}
+                  </span>
+                )}
+                {dayAniversariantes.length > 0 && (
+                  <span className="flex items-center gap-1 text-[10px] text-pink-600 font-medium">
+                    <Cake className="h-2.5 w-2.5"/> {dayAniversariantes.length}
+                  </span>
+                )}
+                {dayRecompras.length > 0 && (
+                  <span className="flex items-center gap-1 text-[10px] text-sky-600 font-medium">
+                    <Gem className="h-2.5 w-2.5"/> {dayRecompras.length}
                   </span>
                 )}
                 <div className="flex flex-col gap-0.5">
@@ -199,6 +266,8 @@ export default function Calendario() {
           day={selectedDay}
           stats={statsByDay.get(dateKey(selectedDay))}
           eventos={eventos.filter(e => eventCoversDay(e, dateKey(selectedDay)))}
+          aniversariantes={birthdaysByDay.get(dateKey(selectedDay)) ?? []}
+          recompras={recompraByDay.get(dateKey(selectedDay)) ?? []}
           lists={lists}
           onClose={() => setSelectedDay(null)}
           onSave={saveEvento}
@@ -210,13 +279,14 @@ export default function Calendario() {
   );
 }
 
-function DayDetailDialog({ day, stats, eventos, lists, onClose, onSave, onDelete, onMessage }: {
-  day: Date; stats: DayStats | undefined; eventos: Evento[]; lists: LeadList[];
+function DayDetailDialog({ day, stats, eventos, aniversariantes, recompras, lists, onClose, onSave, onDelete, onMessage }: {
+  day: Date; stats: DayStats | undefined; eventos: Evento[]; aniversariantes: DiaLead[]; recompras: DiaLead[]; lists: LeadList[];
   onClose: () => void;
   onSave: (patch: { titulo: string; tipo: EventoCalendarioTipo; descricao: string; data: string; data_fim: string | null; alvo_list_id: string | null; alvo_ticket_tier: string | null }) => Promise<void>;
   onDelete: (id: string) => void;
   onMessage: () => void;
 }) {
+  const navigate = useNavigate();
   const [showForm, setShowForm] = useState(false);
   const [titulo, setTitulo]     = useState("");
   const [tipo, setTipo]         = useState<EventoCalendarioTipo>("promocao");
@@ -280,6 +350,38 @@ function DayDetailDialog({ day, stats, eventos, lists, onClose, onSave, onDelete
               )}
             </div>
           </div>
+
+          {(aniversariantes.length > 0 || recompras.length > 0) && (
+            <div className="grid grid-cols-2 gap-3">
+              {aniversariantes.length > 0 && (
+                <div className="p-3 rounded-lg bg-pink-50 border border-pink-200">
+                  <p className="text-[10px] uppercase tracking-wider text-pink-700 mb-1.5 flex items-center gap-1"><Cake className="h-3 w-3"/> Aniversariantes</p>
+                  <div className="space-y-1">
+                    {aniversariantes.map(l => (
+                      <button key={l.id} onClick={() => navigate(`/lead/${l.id}`)}
+                        className="text-xs font-medium text-pink-800 hover:underline block truncate w-full text-left">
+                        {l.nome}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {recompras.length > 0 && (
+                <div className="p-3 rounded-lg bg-sky-50 border border-sky-200">
+                  <p className="text-[10px] uppercase tracking-wider text-sky-700 mb-1.5 flex items-center gap-1"><Gem className="h-3 w-3"/> Recompra prevista</p>
+                  <div className="space-y-1">
+                    {recompras.map(l => (
+                      <button key={l.id} onClick={() => navigate(`/lead/${l.id}`)}
+                        className="text-xs font-medium text-sky-800 hover:underline block truncate w-full text-left">
+                        {l.nome}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
           <Button variant="outline" size="sm" onClick={onMessage} className="w-full">
             <MessageCircle className="h-3.5 w-3.5 mr-2"/> Ir pro Enviador de Mensagens
           </Button>

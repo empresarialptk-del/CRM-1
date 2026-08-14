@@ -815,3 +815,44 @@ export const EVENTO_CALENDARIO_EMOJI: Record<EventoCalendarioTipo, string> = {
   evento: "🎉",
   novidade: "✨",
 };
+
+// ══════════════════════════════════════════════════════════════════════════════
+// CLIENTE 360 — aniversário (leads.data_nascimento), tags livres (leads.tags)
+// e recompra estimada calculada a partir do intervalo entre compras do próprio
+// lead. Reaproveita classificarUrgenciaRecompra()/URGENCIA_LABEL/URGENCIA_COLOR
+// (motor de recorrência acima) pra classificar a urgência da data prevista.
+// ══════════════════════════════════════════════════════════════════════════════
+
+export type RecompraEstimativa = {
+  proximaDataEstimada: string | null; // ISO
+  intervaloMedioDias: number | null;
+};
+
+/** Precisa de pelo menos 2 compras pra estimar um intervalo. */
+export function estimateNextPurchase(compras: { data_compra: string }[]): RecompraEstimativa {
+  if (compras.length < 2) return { proximaDataEstimada: null, intervaloMedioDias: null };
+  const datas = compras.map(c => new Date(c.data_compra).getTime()).sort((a, b) => a - b);
+  const intervalos: number[] = [];
+  for (let i = 1; i < datas.length; i++) intervalos.push((datas[i] - datas[i - 1]) / 86_400_000);
+  const intervaloMedioDias = Math.round(intervalos.reduce((a, b) => a + b, 0) / intervalos.length);
+  const ultimaData = datas[datas.length - 1];
+  const proximaDataEstimada = new Date(ultimaData + intervaloMedioDias * 86_400_000).toISOString();
+  return { proximaDataEstimada, intervaloMedioDias };
+}
+
+/** Compara mês/dia (ignora ano) pra saber se o aniversário cai numa data específica. */
+export function isBirthdayOn(dataNascimento: string | null | undefined, date: Date): boolean {
+  if (!dataNascimento) return false;
+  const b = new Date(dataNascimento + "T12:00:00");
+  return b.getMonth() === date.getMonth() && b.getDate() === date.getDate();
+}
+
+/** Dias até o próximo aniversário (0 = hoje). Null se não houver data cadastrada. */
+export function daysUntilBirthday(dataNascimento: string | null | undefined, from: Date = new Date()): number | null {
+  if (!dataNascimento) return null;
+  const b = new Date(dataNascimento + "T12:00:00");
+  const hoje = new Date(from.getFullYear(), from.getMonth(), from.getDate());
+  let next = new Date(from.getFullYear(), b.getMonth(), b.getDate());
+  if (next < hoje) next = new Date(from.getFullYear() + 1, b.getMonth(), b.getDate());
+  return Math.round((next.getTime() - hoje.getTime()) / 86_400_000);
+}

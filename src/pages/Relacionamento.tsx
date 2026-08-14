@@ -10,13 +10,14 @@ import {
   LEAD_FUNNEL_COLUMNS, LEAD_FUNNEL_LOST_COLUMN, getLeadFunnelColumn,
   TICKET_TIER_LABELS, TICKET_TIER_COLOR, TICKET_TIER_EMOJI, classifyTicketTier, summarizeCompras,
   MENSAGEM_STATUS_CONTATO_LABELS, MENSAGEM_STATUS_CONTATO_COLOR, MENSAGEM_STATUS_CONTATO_EMOJI,
-  formatPhone, formatCurrency, type TicketTier, type MensagemStatusContato,
+  estimateNextPurchase, classificarUrgenciaRecompra, URGENCIA_LABEL, URGENCIA_COLOR, daysUntilBirthday,
+  formatPhone, formatCurrency, type TicketTier, type MensagemStatusContato, type RecorrenciaUrgencia,
 } from "@/lib/crm";
 import { loadProfile } from "@/lib/profile";
-import { Search, Users, RefreshCw, Gem, TrendingUp, Eye, MessageCircle } from "lucide-react";
+import { Search, Users, RefreshCw, Gem, TrendingUp, Eye, MessageCircle, Cake } from "lucide-react";
 import { toast } from "sonner";
 
-type Lead = { id: string; nome: string; telefone: string; status: string; list_id: string | null; assigned_to: string | null };
+type Lead = { id: string; nome: string; telefone: string; status: string; list_id: string | null; assigned_to: string | null; data_nascimento: string | null };
 type LeadList = { id: string; nome: string };
 type ProfileRow = { id: string; full_name: string };
 type LastMensagem = { status_contato: MensagemStatusContato; enviada_em: string };
@@ -24,6 +25,7 @@ type CompraRow = { lead_id: string; valor: number; quantidade: number; data_comp
 
 const ALL_COLS = [...LEAD_FUNNEL_COLUMNS, LEAD_FUNNEL_LOST_COLUMN];
 const TICKET_TIERS: TicketTier[] = ["alto", "medio", "baixo", "sem_compras"];
+const RECOMPRA_URGENCIAS: RecorrenciaUrgencia[] = ["critica", "atrasada", "proxima", "em_dia"];
 
 export default function Relacionamento() {
   const navigate = useNavigate();
@@ -37,6 +39,7 @@ export default function Relacionamento() {
   const [listFilter, setListFilter] = useState("all");
   const [stageFilter, setStageFilter] = useState("all");
   const [tierFilter, setTierFilter] = useState("all");
+  const [recompraFilter, setRecompraFilter] = useState("all");
   const [sortBy, setSortBy]         = useState<"gasto" | "nome">("gasto");
 
   const thresholds = loadProfile();
@@ -50,7 +53,7 @@ export default function Relacionamento() {
       const size = 1000;
       while (true) {
         const { data, error } = await supabase.from("leads")
-          .select("id,nome,telefone,status,list_id,assigned_to")
+          .select("id,nome,telefone,status,list_id,assigned_to,data_nascimento")
           .order("nome", { ascending: true })
           .range(from, from + size - 1);
         if (error || !data || data.length === 0) break;
@@ -93,11 +96,15 @@ export default function Relacionamento() {
 
   const rows = useMemo(() => {
     return leads.map(lead => {
-      const resumo = summarizeCompras(comprasByLead.get(lead.id) ?? []);
+      const compras = comprasByLead.get(lead.id) ?? [];
+      const resumo = summarizeCompras(compras);
       const tier = classifyTicketTier(resumo.ticketMedio, thresholds);
       const col = getLeadFunnelColumn(lead.status);
       const lastMsg = lastMsgByLead.get(lead.id);
-      return { lead, resumo, tier, col, lastMsg };
+      const recompra = estimateNextPurchase(compras);
+      const urgencia = recompra.proximaDataEstimada ? classificarUrgenciaRecompra(recompra.proximaDataEstimada) : null;
+      const diasAteAniversario = daysUntilBirthday(lead.data_nascimento);
+      return { lead, resumo, tier, col, lastMsg, recompra, urgencia, diasAteAniversario };
     });
   }, [leads, comprasByLead, lastMsgByLead, thresholds]);
 
@@ -110,9 +117,10 @@ export default function Relacionamento() {
     if (listFilter !== "all") r = r.filter(x => x.lead.list_id === listFilter);
     if (stageFilter !== "all") r = r.filter(x => x.col?.key === stageFilter);
     if (tierFilter !== "all") r = r.filter(x => x.tier === tierFilter);
+    if (recompraFilter !== "all") r = r.filter(x => x.urgencia === recompraFilter);
     const sorted = [...r].sort((a, b) => sortBy === "gasto" ? b.resumo.totalGasto - a.resumo.totalGasto : a.lead.nome.localeCompare(b.lead.nome));
     return sorted;
-  }, [rows, search, listFilter, stageFilter, tierFilter, sortBy]);
+  }, [rows, search, listFilter, stageFilter, tierFilter, recompraFilter, sortBy]);
 
   const summary = useMemo(() => {
     const totalGasto = rows.reduce((a, r) => a + r.resumo.totalGasto, 0);
@@ -158,6 +166,13 @@ export default function Relacionamento() {
             {TICKET_TIERS.map(t => <SelectItem key={t} value={t}>{TICKET_TIER_EMOJI[t]} {TICKET_TIER_LABELS[t]}</SelectItem>)}
           </SelectContent>
         </Select>
+        <Select value={recompraFilter} onValueChange={setRecompraFilter}>
+          <SelectTrigger className="w-48"><SelectValue placeholder="Toda recompra"/></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Toda recompra</SelectItem>
+            {RECOMPRA_URGENCIAS.map(u => <SelectItem key={u} value={u}>{URGENCIA_LABEL[u]}</SelectItem>)}
+          </SelectContent>
+        </Select>
         <Select value={listFilter} onValueChange={setListFilter}>
           <SelectTrigger className="w-44"><SelectValue placeholder="Todas as listas"/></SelectTrigger>
           <SelectContent>
@@ -186,6 +201,7 @@ export default function Relacionamento() {
               <TableHead>Segmento</TableHead>
               <TableHead className="text-right">Total gasto</TableHead>
               <TableHead className="text-right">Ticket médio</TableHead>
+              <TableHead>Recompra prevista</TableHead>
               <TableHead>Último contato</TableHead>
               <TableHead>Responsável</TableHead>
               <TableHead className="w-16 text-right">Ações</TableHead>
@@ -194,14 +210,21 @@ export default function Relacionamento() {
           <TableBody>
             {loading ? (
               Array.from({ length: 8 }).map((_, i) => (
-                <TableRow key={i}>{Array.from({ length: 8 }).map((_, j) => <TableCell key={j}><div className="h-4 bg-muted animate-pulse rounded"/></TableCell>)}</TableRow>
+                <TableRow key={i}>{Array.from({ length: 9 }).map((_, j) => <TableCell key={j}><div className="h-4 bg-muted animate-pulse rounded"/></TableCell>)}</TableRow>
               ))
             ) : filtered.length === 0 ? (
-              <TableRow><TableCell colSpan={8} className="text-center py-16 text-muted-foreground">Nenhum lead encontrado para esse filtro.</TableCell></TableRow>
-            ) : filtered.map(({ lead, resumo, tier, col, lastMsg }) => (
+              <TableRow><TableCell colSpan={9} className="text-center py-16 text-muted-foreground">Nenhum lead encontrado para esse filtro.</TableCell></TableRow>
+            ) : filtered.map(({ lead, resumo, tier, col, lastMsg, recompra, urgencia, diasAteAniversario }) => (
               <TableRow key={lead.id} className="hover:bg-muted/40 cursor-pointer" onClick={() => navigate(`/lead/${lead.id}`)}>
                 <TableCell>
-                  <div className="font-medium">{lead.nome}</div>
+                  <div className="font-medium flex items-center gap-1.5">
+                    {lead.nome}
+                    {diasAteAniversario !== null && diasAteAniversario <= 7 && (
+                      <span title={diasAteAniversario === 0 ? "Aniversário hoje" : `Aniversário em ${diasAteAniversario}d`}>
+                        <Cake className={`h-3.5 w-3.5 ${diasAteAniversario === 0 ? "text-pink-600" : "text-pink-400"}`}/>
+                      </span>
+                    )}
+                  </div>
                   <div className="text-xs text-muted-foreground tabular-nums">{formatPhone(lead.telefone)}</div>
                 </TableCell>
                 <TableCell>
@@ -216,6 +239,16 @@ export default function Relacionamento() {
                 </TableCell>
                 <TableCell className="text-right tabular-nums font-medium">{formatCurrency(resumo.totalGasto)}</TableCell>
                 <TableCell className="text-right tabular-nums text-muted-foreground">{resumo.ticketMedio !== null ? formatCurrency(resumo.ticketMedio) : "—"}</TableCell>
+                <TableCell>
+                  {recompra.proximaDataEstimada && urgencia ? (
+                    <div className="space-y-0.5">
+                      <Badge variant="secondary" className={`text-[10px] ${URGENCIA_COLOR[urgencia]}`}>{URGENCIA_LABEL[urgencia]}</Badge>
+                      <div className="text-[10px] text-muted-foreground">
+                        {new Date(recompra.proximaDataEstimada).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })}
+                      </div>
+                    </div>
+                  ) : <span className="text-xs text-muted-foreground/50">—</span>}
+                </TableCell>
                 <TableCell>
                   {lastMsg ? (
                     <Badge variant="secondary" className={`text-[10px] ${MENSAGEM_STATUS_CONTATO_COLOR[lastMsg.status_contato]}`}>
