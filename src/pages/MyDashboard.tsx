@@ -5,101 +5,29 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { formatDuration, FUNNEL_STAGES, OUTCOME_LABELS } from "@/lib/crm";
+import {
+  LEAD_STATUSES, LEAD_STATUS_LABELS, LEAD_STATUS_COLOR,
+  MENSAGEM_CATEGORIAS, MENSAGEM_CATEGORIA_LABELS, MENSAGEM_CATEGORIA_COLOR, MENSAGEM_CATEGORIA_EMOJI,
+  type MensagemCategoria,
+} from "@/lib/crm";
 import {
   PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer,
   BarChart, Bar, XAxis, YAxis, LineChart, Line, CartesianGrid,
 } from "recharts";
 import {
-  Phone, Clock, Trophy, TrendingUp, Target, Users,
-  PhoneMissed, CalendarCheck, Flame, Star, Activity, Filter,
-  ChevronLeft, ChevronRight, CalendarDays, X, Award, Pencil, Save, Zap,
+  MessageCircle, TrendingUp, Target, Users,
+  Flame, Star, Activity, Filter,
+  ChevronLeft, ChevronRight, CalendarDays, X, Award, Pencil, Save, Zap, CheckCircle2,
 } from "lucide-react";
 
 // ── Metas editáveis ──────────────────────────────────────────────────────────
-const META_KEY = "dashboard_metas_v2";
+const META_KEY = "dashboard_metas_mensagens_v1";
 function loadMetas() {
-  try { const r = localStorage.getItem(META_KEY); return r ? JSON.parse(r) : { ligacoes: 50, visitas: 3, checkup: 8 }; }
-  catch { return { ligacoes: 50, visitas: 3, checkup: 8 }; }
+  try { const r = localStorage.getItem(META_KEY); return r ? JSON.parse(r) : { mensagens: 30, taxaResposta: 40, checkup: 8 }; }
+  catch { return { mensagens: 30, taxaResposta: 40, checkup: 8 }; }
 }
-function saveMetas(m: { ligacoes: number; visitas: number; checkup: number }) {
+function saveMetas(m: { mensagens: number; taxaResposta: number; checkup: number }) {
   try { localStorage.setItem(META_KEY, JSON.stringify(m)); } catch {}
-}
-
-// ── Cores outcomes ────────────────────────────────────────────────────────
-const OUTCOME_META: Record<string, { label: string; color: string; category: "positivo" | "retorno" | "encerrado" }> = {
-  proposta:           { label: "Proposta",          color: "#10b981", category: "positivo"  },
-  visita:             { label: "Visita (leg)",      color: "#059669", category: "positivo"  },
-  agendado:           { label: "Agendado (leg)",    color: "#34d399", category: "positivo"  },
-  visita_pendente:    { label: "Quer visitar",      color: "#f97316", category: "positivo"  },
-  visita_agendada:    { label: "Visita agendada",   color: "#3b82f6", category: "positivo"  },
-  visita_confirmada:  { label: "Visita confirmada", color: "#059669", category: "positivo"  },
-  visita_cancelada:   { label: "Visita cancelada",  color: "#ef4444", category: "retorno"   },
-  convertido:         { label: "Convertido",        color: "#065f46", category: "positivo"  },
-  respondeu:          { label: "Respondeu",         color: "#6ee7b7", category: "positivo"  },
-  mensagem_zap:       { label: "Msg Zap",           color: "#a7f3d0", category: "positivo"  },
-  nao_atendeu:      { label: "Não atendeu",    color: "#f59e0b", category: "retorno"   },
-  retornar:         { label: "Retornar",       color: "#fbbf24", category: "retorno"   },
-  sem_interesse:    { label: "Sem interesse",  color: "#f87171", category: "encerrado" },
-  numero_errado:    { label: "Nº errado",      color: "#ef4444", category: "encerrado" },
-  numero_bloqueado: { label: "Bloqueado",      color: "#dc2626", category: "encerrado" },
-  ja_comprou:       { label: "Já comprou",     color: "#b91c1c", category: "encerrado" },
-  comprou_carro:    { label: "Comprou carro",  color: "#991b1b", category: "encerrado" },
-  nao_quer_mais:    { label: "Não quer mais",  color: "#7f1d1d", category: "encerrado" },
-  perdido:          { label: "Perdido",        color: "#fca5a5", category: "encerrado" },
-  ignorado:         { label: "Ignorado",       color: "#fcd34d", category: "encerrado" },
-  quer_casa:        { label: "Quer casa",      color: "#d97706", category: "encerrado" },
-  personalizado:    { label: "Personalizado",  color: "#a78bfa", category: "retorno"   },
-};
-
-const STATUS_META: Record<string, { label: string; color: string }> = {
-  novo:             { label: "Novo",           color: "#6366f1" },
-  nao_atendeu:      { label: "Não atendeu",    color: "#f59e0b" },
-  retornar:         { label: "Retornar",       color: "#3b82f6" },
-  agendado:         { label: "Agendado",       color: "#8b5cf6" },
-  convertido:       { label: "Convertido",     color: "#10b981" },
-  interesse:        { label: "Interesse",      color: "#0ea5e9" },
-  visita_pendente:  { label: "Quer visitar",   color: "#f97316" },
-  visita_agendada:  { label: "V. agendada",    color: "#8b5cf6" },
-  visita_confirmada:{ label: "V. confirmada",  color: "#10b981" },
-  visita_faltou:    { label: "Não veio",       color: "#f43f5e" },
-  visita_cancelada: { label: "Cancelou",       color: "#ef4444" },
-  visita_remarcada: { label: "Remarcada",      color: "#a78bfa" },
-  visitou:          { label: "Visitou",        color: "#059669" },
-  envio_documentos: { label: "Envio docs",     color: "#6d28d9" },
-  cpf_analisado:    { label: "CPF analisado",  color: "#2563eb" },
-  credito_aprovado: { label: "Crédito aprov.", color: "#0891b2" },
-  contrato_gerado:  { label: "Contrato",       color: "#4338ca" },
-  contrato_assinado:{ label: "Assinado",       color: "#1d4ed8" },
-  boleto_pago:      { label: "Boleto pago",    color: "#0f766e" },
-  repasse:          { label: "Repasse",        color: "#0369a1" },
-  registro:         { label: "Registro 🏆",   color: "#059669" },
-  sem_interesse:    { label: "Sem interesse",  color: "#6b7280" },
-  numero_errado:    { label: "Nº errado",      color: "#ef4444" },
-  ignorado:         { label: "Ignorado",       color: "#9ca3af" },
-  perdido:          { label: "Perdido",        color: "#9ca3af" },
-  proposta:         { label: "Proposta",       color: "#059669" },
-  visita:           { label: "Visita",         color: "#0d9488" },
-  quer_casa:        { label: "Quer casa",      color: "#d97706" },
-  ja_comprou:       { label: "Já comprou",     color: "#16a34a" },
-  comprou_carro:    { label: "Comprou carro",  color: "#15803d" },
-  nao_quer_mais:    { label: "Não quer mais",  color: "#dc2626" },
-  respondeu:        { label: "Respondeu",      color: "#0ea5e9" },
-  mensagem_zap:     { label: "Msg Zap",        color: "#22c55e" },
-  numero_bloqueado: { label: "Bloqueado",      color: "#7f1d1d" },
-};
-
-// ── localStorage ─────────────────────────────────────────────────────────────
-const CONTACTED_KEY = "dialer_contacted_ids";
-function todayPrefix() { return new Date().toISOString().slice(0, 10); }
-function loadContactedToday(): string[] {
-  try {
-    const raw = localStorage.getItem(CONTACTED_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    if (parsed.date !== todayPrefix()) return [];
-    return parsed.ids ?? [];
-  } catch { return []; }
 }
 
 // ── Helpers de data ───────────────────────────────────────────────────────────
@@ -136,7 +64,7 @@ const PRESETS = [
 const WEEKDAYS = ["Dom","Seg","Ter","Qua","Qui","Sex","Sáb"];
 const MONTHS   = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
 
-// ── CalendarPopover (original refinado) ──────────────────────────────────────
+// ── CalendarPopover ───────────────────────────────────────────────────────────
 function CalendarPopover({ preset, setPreset, customRange, setCustomRange }: {
   preset: string; setPreset: (v: string) => void;
   customRange: { start: Date | null; end: Date | null };
@@ -286,6 +214,9 @@ function MetaBar({ label, current, meta, color }: { label: string; current: numb
   );
 }
 
+type MensagemRow = { id: string; categoria: MensagemCategoria; respondida: boolean; enviada_em: string; lead_id: string };
+type LeadRow = { id: string; status: string; list_id: string | null; created_at: string; observacoes: string | null };
+
 // ── Dashboard principal ───────────────────────────────────────────────────────
 export default function MyDashboard() {
   const { user } = useAuth();
@@ -293,37 +224,44 @@ export default function MyDashboard() {
   const [preset, setPreset]           = useState("today");
   const [customRange, setCustomRange] = useState<{ start: Date | null; end: Date | null }>({ start: null, end: null });
   const [activeList, setActiveList]   = useState("all");
-  const [calls, setCalls]             = useState<any[]>([]);
-  const [leads, setLeads]             = useState<any[]>([]);
+  const [mensagens, setMensagens]     = useState<MensagemRow[]>([]);
+  const [leads, setLeads]             = useState<LeadRow[]>([]);
   const [lists, setLists]             = useState<any[]>([]);
   const [loading, setLoading]         = useState(true);
   const [metas, setMetas]             = useState(loadMetas);
   const [editingMeta, setEditingMeta] = useState(false);
   const [metaDraft, setMetaDraft]     = useState(loadMetas);
   const [checkupHistory, setCheckupHistory] = useState<{ date: string; nota: number }[]>([]);
-  const [lastWeekCalls, setLastWeekCalls]   = useState<any[]>([]);
-
-  const contactedTodayIds = useMemo(() => new Set(loadContactedToday()), [calls]);
+  const [lastWeekMensagens, setLastWeekMensagens] = useState<MensagemRow[]>([]);
 
   useEffect(() => {
     if (!user) return;
     setLoading(true);
     const { start, end } = rangeFromPreset(preset, customRange);
+    const lastWeekStart = localMidnight(addDays(new Date(), -13));
+    const lastWeekEnd   = localEndOfDay(addDays(new Date(), -7));
 
     Promise.all([
       (async () => {
-        let q = supabase.from("calls").select("*").eq("atendente_id", user.id).order("started_at", { ascending: true });
-        if (start) q = q.gte("started_at", start.toISOString());
-        if (end)   q = q.lte("started_at", end.toISOString());
+        let q = supabase.from("mensagens").select("id,categoria,respondida,enviada_em,lead_id").eq("atendente_id", user.id).order("enviada_em", { ascending: true });
+        if (start) q = q.gte("enviada_em", start.toISOString());
+        if (end)   q = q.lte("enviada_em", end.toISOString());
         const { data } = await q;
-        setCalls(data ?? []);
+        setMensagens((data ?? []) as MensagemRow[]);
+      })(),
+      (async () => {
+        const { data } = await supabase
+          .from("mensagens").select("id,categoria,respondida,enviada_em,lead_id")
+          .eq("atendente_id", user.id)
+          .gte("enviada_em", lastWeekStart.toISOString())
+          .lte("enviada_em", lastWeekEnd.toISOString());
+        setLastWeekMensagens((data ?? []) as MensagemRow[]);
       })(),
       (async () => {
         let q = supabase.from("leads").select("id,status,list_id,created_at,observacoes").order("created_at", { ascending: false });
         if (activeList !== "all") q = q.eq("list_id", activeList);
         const { data } = await q;
-        setLeads(data ?? []);
-        // Parse checkup history
+        setLeads((data ?? []) as LeadRow[]);
         const history: { date: string; nota: number }[] = [];
         (data ?? []).forEach((lead: any) => {
           if (!lead.observacoes) return;
@@ -343,84 +281,62 @@ export default function MyDashboard() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id, preset, customRange.start?.toISOString(), customRange.end?.toISOString(), activeList]);
 
-  const filteredCalls = useMemo(() => {
-    let base = calls;
-    if (activeList !== "all") {
-      const leadIds = new Set(leads.map(l => l.id));
-      base = base.filter(c => leadIds.has(c.lead_id));
-    }
-    if (preset === "today") base = base.filter(c => contactedTodayIds.has(c.lead_id));
-    return base;
-  }, [calls, leads, activeList, preset, contactedTodayIds]);
+  const filteredMensagens = useMemo(() => {
+    if (activeList === "all") return mensagens;
+    const leadIds = new Set(leads.map(l => l.id));
+    return mensagens.filter(m => leadIds.has(m.lead_id));
+  }, [mensagens, leads, activeList]);
 
   const metrics = useMemo(() => {
-    const total       = filteredCalls.length;
-    const totalSec    = filteredCalls.reduce((a, c) => a + (c.duracao_segundos || 0), 0);
-    const avgSec      = total ? Math.round(totalSec / total) : 0;
-    const positivos   = filteredCalls.filter(c => OUTCOME_META[c.outcome]?.category === "positivo").length;
-    const convertidos = filteredCalls.filter(c => c.outcome === "convertido").length;
-    const visitas     = filteredCalls.filter(c => ["visita","agendado","visita_pendente","visita_agendada","visita_confirmada"].includes(c.outcome)).length;
-    const naoAtendeu  = filteredCalls.filter(c => c.outcome === "nao_atendeu").length;
-    const taxaPos     = total ? Math.round((positivos / total) * 100) : 0;
-    const taxaVisita  = total ? Math.round((visitas / total) * 100) : 0;
-    return { total, totalSec, avgSec, positivos, convertidos, visitas, naoAtendeu, taxaPos, taxaVisita };
-  }, [filteredCalls]);
+    const total       = filteredMensagens.length;
+    const respondidas = filteredMensagens.filter(m => m.respondida).length;
+    const taxaResposta= total ? Math.round((respondidas / total) * 100) : 0;
+    const porCategoria: Record<string, number> = {};
+    filteredMensagens.forEach(m => { porCategoria[m.categoria] = (porCategoria[m.categoria] ?? 0) + 1; });
+    return { total, respondidas, taxaResposta, porCategoria };
+  }, [filteredMensagens]);
 
   const byHour = useMemo(() => {
     const m: Record<number, number> = {};
     for (let h = 8; h <= 20; h++) m[h] = 0;
-    filteredCalls.forEach(c => { const h = new Date(c.started_at).getHours(); if (h >= 8 && h <= 20) m[h] = (m[h] || 0) + 1; });
-    return Object.entries(m).map(([h, v]) => ({ hora: `${h}h`, ligacoes: v }));
-  }, [filteredCalls]);
+    filteredMensagens.forEach(c => { const h = new Date(c.enviada_em).getHours(); if (h >= 8 && h <= 20) m[h] = (m[h] || 0) + 1; });
+    return Object.entries(m).map(([h, v]) => ({ hora: `${h}h`, mensagens: v }));
+  }, [filteredMensagens]);
 
-  const byWeekday = useMemo(() => {
-    const m: Record<number, number> = {};
-    for (let i = 0; i < 7; i++) m[i] = 0;
-    filteredCalls.forEach(c => { const d = new Date(c.started_at).getDay(); m[d] = (m[d] || 0) + 1; });
-    return Object.entries(m).map(([d, v]) => ({ dia: WEEKDAYS[Number(d)], ligacoes: v }));
-  }, [filteredCalls]);
-
-  const melhorHora = useMemo(() => byHour.length ? byHour.reduce((a, b) => b.ligacoes > a.ligacoes ? b : a) : null, [byHour]);
-  const melhorDia  = useMemo(() => byWeekday.length ? byWeekday.reduce((a, b) => b.ligacoes > a.ligacoes ? b : a) : null, [byWeekday]);
+  const melhorHora = useMemo(() => byHour.length ? byHour.reduce((a, b) => b.mensagens > a.mensagens ? b : a) : null, [byHour]);
 
   const byDay = useMemo(() => {
     const m: Record<string, number> = {};
-    filteredCalls.forEach(c => { const d = new Date(c.started_at).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }); m[d] = (m[d] || 0) + 1; });
-    return Object.entries(m).map(([d, v]) => ({ dia: d, ligacoes: v }));
-  }, [filteredCalls]);
+    filteredMensagens.forEach(c => { const d = new Date(c.enviada_em).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }); m[d] = (m[d] || 0) + 1; });
+    return Object.entries(m).map(([d, v]) => ({ dia: d, mensagens: v }));
+  }, [filteredMensagens]);
 
-  const outcomeData = useMemo(() => {
-    const m: Record<string, number> = {};
-    filteredCalls.forEach(c => { m[c.outcome] = (m[c.outcome] || 0) + 1; });
-    return Object.entries(m).map(([k, v]) => ({ key: k, name: OUTCOME_META[k]?.label ?? k, value: v, color: OUTCOME_META[k]?.color ?? "#9ca3af" })).sort((a, b) => b.value - a.value);
-  }, [filteredCalls]);
+  const categoriaData = useMemo(() => {
+    return MENSAGEM_CATEGORIAS.map(c => ({
+      key: c, name: MENSAGEM_CATEGORIA_LABELS[c], value: metrics.porCategoria[c] ?? 0,
+      color: { recompra: "#0ea5e9", novidade: "#8b5cf6", desconto: "#f59e0b", promocao: "#f43f5e" }[c],
+    })).filter(d => d.value > 0);
+  }, [metrics.porCategoria]);
 
-  const categoryData = useMemo(() => {
-    const pos = filteredCalls.filter(c => OUTCOME_META[c.outcome]?.category === "positivo").length;
-    const ret = filteredCalls.filter(c => OUTCOME_META[c.outcome]?.category === "retorno").length;
-    const enc = filteredCalls.filter(c => OUTCOME_META[c.outcome]?.category === "encerrado").length;
-    return [
-      { name: "Positivo",  value: pos, color: "#10b981" },
-      { name: "Retorno",   value: ret, color: "#f59e0b" },
-      { name: "Encerrado", value: enc, color: "#ef4444" },
-    ].filter(d => d.value > 0);
-  }, [filteredCalls]);
+  const respostaData = useMemo(() => ([
+    { name: "Respondidas",     value: metrics.respondidas,               color: "#10b981" },
+    { name: "Sem resposta",    value: metrics.total - metrics.respondidas, color: "#cbd5e1" },
+  ].filter(d => d.value > 0)), [metrics]);
 
   const leadsByStatus = useMemo(() => {
     const m: Record<string, number> = {};
     leads.forEach(l => { m[l.status] = (m[l.status] || 0) + 1; });
-    return Object.entries(m).map(([k, v]) => ({ key: k, status: STATUS_META[k]?.label ?? k, value: v, color: STATUS_META[k]?.color ?? "#9ca3af" })).sort((a, b) => b.value - a.value);
+    return LEAD_STATUSES.map(s => ({ key: s, label: LEAD_STATUS_LABELS[s], value: m[s] ?? 0, color: LEAD_STATUS_COLOR[s] })).filter(s => s.value > 0);
   }, [leads]);
 
   const leadsByList = useMemo(() => {
-    const m: Record<string, { nome: string; total: number; pendentes: number; convertidos: number }> = {};
+    const m: Record<string, { nome: string; total: number; pendentes: number }> = {};
     const listMap = Object.fromEntries(lists.map(l => [l.id, l.nome]));
     leads.forEach(l => {
-      const nome = listMap[l.list_id] ?? "Sem lista";
-      m[nome] ??= { nome, total: 0, pendentes: 0, convertidos: 0 };
+      const nome = listMap[l.list_id ?? ""] ?? "Sem lista";
+      m[nome] ??= { nome, total: 0, pendentes: 0 };
       m[nome].total++;
       if (["novo", "retornar", "nao_atendeu"].includes(l.status)) m[nome].pendentes++;
-      if (l.status === "convertido") m[nome].convertidos++;
     });
     return Object.values(m).sort((a, b) => b.total - a.total);
   }, [leads, lists]);
@@ -445,7 +361,7 @@ export default function MyDashboard() {
   if (loading) {
     return (
       <div className="p-8 max-w-7xl mx-auto">
-        <div className="flex items-center gap-3 mb-8"><Activity className="h-8 w-8 text-primary animate-pulse" /><h1 className="font-display text-3xl font-bold">Dashboard Discador</h1></div>
+        <div className="flex items-center gap-3 mb-8"><Activity className="h-8 w-8 text-primary animate-pulse" /><h1 className="font-display text-3xl font-bold">Dashboard de Mensagens</h1></div>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">{[...Array(8)].map((_, i) => <Card key={i} className="p-5 h-24 animate-pulse bg-muted/40" />)}</div>
       </div>
     );
@@ -457,9 +373,9 @@ export default function MyDashboard() {
       {/* Header */}
       <header className="flex items-end justify-between flex-wrap gap-4">
         <div>
-          <h1 className="font-display text-3xl font-bold flex items-center gap-3"><Activity className="h-8 w-8 text-primary" />Dashboard Discador</h1>
+          <h1 className="font-display text-3xl font-bold flex items-center gap-3"><Activity className="h-8 w-8 text-primary" />Dashboard de Mensagens</h1>
           <p className="text-muted-foreground mt-1">
-            Acompanhe seu desempenho em tempo real
+            Acompanhe o envio de mensagens em tempo real
             {activeList !== "all" && <span className="ml-2 text-foreground font-medium">— Lista: {lists.find(l => l.id === activeList)?.nome}</span>}
           </p>
         </div>
@@ -478,14 +394,10 @@ export default function MyDashboard() {
 
       {/* KPIs */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <KPI icon={<Phone />}         label={preset === "today" ? "Já contactados hoje" : "Total de ligações"} value={String(metrics.total)}          color="bg-blue-500/10 text-blue-600"    />
-        <KPI icon={<Clock />}         label="Tempo total"          value={formatDuration(metrics.totalSec)}   color="bg-violet-500/10 text-violet-600" />
-        <KPI icon={<Clock />}         label="Tempo médio"          value={formatDuration(metrics.avgSec)}     color="bg-indigo-500/10 text-indigo-600" />
-        <KPI icon={<Trophy />}        label="Convertidos"          value={String(metrics.convertidos)}        color="bg-emerald-500/10 text-emerald-600"/>
-        <KPI icon={<Star />}          label="Positivos"            value={String(metrics.positivos)}          color="bg-green-500/10 text-green-600"   />
-        <KPI icon={<CalendarCheck />} label="Visitas / Agendados"  value={String(metrics.visitas)}            color="bg-teal-500/10 text-teal-600"     />
-        <KPI icon={<TrendingUp />}    label="Taxa de positivos"    value={`${metrics.taxaPos}%`}              color="bg-cyan-500/10 text-cyan-600"     />
-        <KPI icon={<Award />}         label="Nota check-up"        value={notaMediaCheckup ? `${notaMediaCheckup}/10` : "—"} color="bg-purple-500/10 text-purple-600" />
+        <KPI icon={<MessageCircle />}  label="Mensagens enviadas"   value={String(metrics.total)}              color="bg-blue-500/10 text-blue-600"     />
+        <KPI icon={<CheckCircle2 />}   label="Respondidas"          value={String(metrics.respondidas)}        color="bg-emerald-500/10 text-emerald-600"/>
+        <KPI icon={<TrendingUp />}     label="Taxa de resposta"     value={`${metrics.taxaResposta}%`}         color="bg-cyan-500/10 text-cyan-600"     />
+        <KPI icon={<Award />}          label="Nota check-up"        value={notaMediaCheckup ? `${notaMediaCheckup}/10` : "—"} color="bg-purple-500/10 text-purple-600" />
       </div>
 
       {/* ── Relatório do dia (aparece após 17h no preset hoje) ─────────── */}
@@ -498,10 +410,10 @@ export default function MyDashboard() {
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3">
             {[
-              { label: "Ligações",     value: String(metrics.total),              icon: "📞" },
-              { label: "Visitas",      value: String(metrics.visitas),            icon: "🏠" },
-              { label: "Taxa positiva",value: `${metrics.taxaPos}%`,              icon: "📈" },
-              { label: "Tempo total",  value: formatDuration(metrics.totalSec),   icon: "⏱" },
+              { label: "Mensagens",    value: String(metrics.total),              icon: "💬" },
+              { label: "Respondidas",  value: String(metrics.respondidas),        icon: "✅" },
+              { label: "Taxa resposta",value: `${metrics.taxaResposta}%`,         icon: "📈" },
+              { label: "Categoria top",value: categoriaData[0]?.name ?? "—",      icon: "🏷️" },
             ].map(s => (
               <div key={s.label} className="bg-white/10 rounded-lg p-2.5 text-center">
                 <div className="text-lg mb-0.5">{s.icon}</div>
@@ -511,12 +423,12 @@ export default function MyDashboard() {
             ))}
           </div>
           <p className="text-xs text-white/60 text-center">
-            {metrics.total >= 50 ? "🎉 Meta batida! Ótimo dia!" : metrics.total >= 30 ? "💪 Bom ritmo, continue amanhã!" : "📌 Amanhã é uma nova oportunidade."}
+            {metrics.total >= metas.mensagens ? "🎉 Meta batida! Ótimo dia!" : metrics.total >= metas.mensagens * 0.6 ? "💪 Bom ritmo, continue amanhã!" : "📌 Amanhã é uma nova oportunidade."}
           </p>
         </Card>
       )}
 
-      {/* ── NOVO: Metas editáveis ─────────────────────────────────────────── */}
+      {/* ── Metas editáveis ─────────────────────────────────────────── */}
       <Card className="p-6 shadow-card">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
@@ -537,9 +449,9 @@ export default function MyDashboard() {
         {editingMeta ? (
           <div className="grid grid-cols-3 gap-4">
             {[
-              { key: "ligacoes", label: "📞 Ligações/dia" },
-              { key: "visitas",  label: "🏠 Visitas/dia"  },
-              { key: "checkup",  label: "⭐ Nota check-up" },
+              { key: "mensagens",    label: "💬 Mensagens/dia" },
+              { key: "taxaResposta", label: "📈 Taxa resposta % (meta)" },
+              { key: "checkup",      label: "⭐ Nota check-up" },
             ].map(m => (
               <div key={m.key}>
                 <label className="text-xs font-medium text-muted-foreground mb-1 block">{m.label}</label>
@@ -550,76 +462,59 @@ export default function MyDashboard() {
           </div>
         ) : (
           <div className="space-y-4">
-            <MetaBar label="Ligações" current={metrics.total} meta={metas.ligacoes} color="bg-blue-500" />
-            <MetaBar label="Visitas agendadas" current={metrics.visitas} meta={metas.visitas} color="bg-emerald-500" />
+            <MetaBar label="Mensagens enviadas" current={metrics.total} meta={metas.mensagens} color="bg-blue-500" />
+            <MetaBar label="Taxa de resposta"    current={metrics.taxaResposta} meta={metas.taxaResposta} color="bg-emerald-500" />
             {notaMediaCheckup !== null && <MetaBar label="Nota check-up" current={notaMediaCheckup} meta={metas.checkup} color="bg-purple-500" />}
           </div>
         )}
       </Card>
 
-      {/* ── NOVO: Destaques do período ────────────────────────────────────── */}
+      {/* ── Destaques do período ────────────────────────────────────── */}
       {metrics.total > 0 && (
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          {melhorHora && melhorHora.ligacoes > 0 && (
+          {melhorHora && melhorHora.mensagens > 0 && (
             <Card className="p-5 shadow-card bg-gradient-to-br from-amber-50 to-orange-50 border-amber-200">
               <div className="flex items-center gap-2 mb-2"><Zap className="h-4 w-4 text-amber-600" /><span className="text-xs font-semibold text-amber-700 uppercase tracking-wider">Melhor horário</span></div>
               <div className="text-3xl font-display font-bold text-amber-800">{melhorHora.hora}</div>
-              <div className="text-sm text-amber-700 mt-0.5">{melhorHora.ligacoes} ligações neste horário</div>
+              <div className="text-sm text-amber-700 mt-0.5">{melhorHora.mensagens} mensagens neste horário</div>
             </Card>
           )}
-          {melhorDia && melhorDia.ligacoes > 0 && (
+          {categoriaData[0] && (
             <Card className="p-5 shadow-card bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-200">
-              <div className="flex items-center gap-2 mb-2"><Flame className="h-4 w-4 text-blue-600" /><span className="text-xs font-semibold text-blue-700 uppercase tracking-wider">Melhor dia</span></div>
-              <div className="text-3xl font-display font-bold text-blue-800">{melhorDia.dia}</div>
-              <div className="text-sm text-blue-700 mt-0.5">{melhorDia.ligacoes} ligações neste dia</div>
+              <div className="flex items-center gap-2 mb-2"><Flame className="h-4 w-4 text-blue-600" /><span className="text-xs font-semibold text-blue-700 uppercase tracking-wider">Categoria mais usada</span></div>
+              <div className="text-3xl font-display font-bold text-blue-800">{MENSAGEM_CATEGORIA_EMOJI[categoriaData[0].key as MensagemCategoria]}</div>
+              <div className="text-sm text-blue-700 mt-0.5">{categoriaData[0].name} · {categoriaData[0].value} mensagens</div>
             </Card>
           )}
-          {metrics.taxaVisita > 0 && (
+          {metrics.taxaResposta > 0 && (
             <Card className="p-5 shadow-card bg-gradient-to-br from-emerald-50 to-teal-50 border-emerald-200">
-              <div className="flex items-center gap-2 mb-2"><TrendingUp className="h-4 w-4 text-emerald-600" /><span className="text-xs font-semibold text-emerald-700 uppercase tracking-wider">Taxa visita</span></div>
-              <div className="text-3xl font-display font-bold text-emerald-800">{metrics.taxaVisita}%</div>
-              <div className="text-sm text-emerald-700 mt-0.5">ligações → visita (pendente+agendada)</div>
+              <div className="flex items-center gap-2 mb-2"><TrendingUp className="h-4 w-4 text-emerald-600" /><span className="text-xs font-semibold text-emerald-700 uppercase tracking-wider">Taxa de resposta</span></div>
+              <div className="text-3xl font-display font-bold text-emerald-800">{metrics.taxaResposta}%</div>
+              <div className="text-sm text-emerald-700 mt-0.5">mensagens que tiveram resposta</div>
             </Card>
           )}
         </div>
       )}
 
-      {/* ── Funil por etapa ────────────────────────────────────────────── */}
-      <div className="grid grid-cols-4 sm:grid-cols-7 lg:grid-cols-14 gap-2">
-        {FUNNEL_STAGES.map(stage => {
-          const statusMap: Record<string,number> = {};
-          leads.forEach(l => { statusMap[l.status] = (statusMap[l.status] || 0) + 1; });
-          const count = stage.statuses.reduce((acc, s) => acc + (statusMap[s] ?? 0), 0);
-          return (
-            <div key={stage.key} className="rounded-xl p-3 border text-center"
-              style={{ backgroundColor: stage.light, borderColor: stage.color + "30" }}>
-              <div className="text-lg font-bold" style={{ color: stage.color }}>{count}</div>
-              <div className="text-[10px] font-bold" style={{ color: stage.color }}>{stage.key}</div>
-              <div className="text-[9px] text-muted-foreground truncate">{stage.label}</div>
-            </div>
-          );
-        })}
-      </div>
-
       {/* Gráficos linha 1 */}
       <div className="grid lg:grid-cols-2 gap-6">
         <Card className="p-6 shadow-card">
-          <h3 className="font-display font-semibold mb-1">Resultado geral</h3>
-          <p className="text-xs text-muted-foreground mb-4">Distribuição por categoria</p>
-          {categoryData.length === 0 ? <Empty /> : (
+          <h3 className="font-display font-semibold mb-1">Mensagens por categoria</h3>
+          <p className="text-xs text-muted-foreground mb-4">Distribuição no período</p>
+          {categoriaData.length === 0 ? <Empty /> : (
             <>
               <div className="h-64">
                 <ResponsiveContainer>
                   <PieChart>
-                    <Pie data={categoryData} dataKey="value" nameKey="name" innerRadius={55} outerRadius={95} paddingAngle={3}>
-                      {categoryData.map((d, i) => <Cell key={i} fill={d.color} />)}
+                    <Pie data={categoriaData} dataKey="value" nameKey="name" innerRadius={55} outerRadius={95} paddingAngle={3}>
+                      {categoriaData.map((d, i) => <Cell key={i} fill={d.color} />)}
                     </Pie>
-                    <Legend wrapperStyle={{ fontSize: 13 }} /><Tooltip formatter={(v: any) => [`${v} ligações`]} />
+                    <Legend wrapperStyle={{ fontSize: 13 }} /><Tooltip formatter={(v: any) => [`${v} mensagens`]} />
                   </PieChart>
                 </ResponsiveContainer>
               </div>
               <div className="flex gap-3 mt-2 flex-wrap">
-                {categoryData.map(d => (
+                {categoriaData.map(d => (
                   <div key={d.name} className="flex items-center gap-1.5 text-xs">
                     <div className="h-2.5 w-2.5 rounded-full" style={{ background: d.color }} />
                     <span className="font-medium">{d.name}</span>
@@ -632,16 +527,16 @@ export default function MyDashboard() {
         </Card>
 
         <Card className="p-6 shadow-card">
-          <h3 className="font-display font-semibold mb-1">Detalhamento por resultado</h3>
-          <p className="text-xs text-muted-foreground mb-4">Todos os outcomes do período</p>
-          {outcomeData.length === 0 ? <Empty /> : (
+          <h3 className="font-display font-semibold mb-1">Respondidas vs sem resposta</h3>
+          <p className="text-xs text-muted-foreground mb-4">Todas as mensagens do período</p>
+          {respostaData.length === 0 ? <Empty /> : (
             <div className="h-64">
               <ResponsiveContainer>
                 <PieChart>
-                  <Pie data={outcomeData} dataKey="value" nameKey="name" innerRadius={40} outerRadius={90} paddingAngle={2}>
-                    {outcomeData.map((d, i) => <Cell key={i} fill={d.color} />)}
+                  <Pie data={respostaData} dataKey="value" nameKey="name" innerRadius={40} outerRadius={90} paddingAngle={2}>
+                    {respostaData.map((d, i) => <Cell key={i} fill={d.color} />)}
                   </Pie>
-                  <Tooltip formatter={(v: any) => [`${v} ligações`]} /><Legend wrapperStyle={{ fontSize: 11 }} />
+                  <Tooltip formatter={(v: any) => [`${v} mensagens`]} /><Legend wrapperStyle={{ fontSize: 11 }} />
                 </PieChart>
               </ResponsiveContainer>
             </div>
@@ -652,7 +547,7 @@ export default function MyDashboard() {
       {/* Gráficos linha 2 */}
       <div className="grid lg:grid-cols-2 gap-6">
         <Card className="p-6 shadow-card">
-          <h3 className="font-display font-semibold mb-1">Ligações por dia</h3>
+          <h3 className="font-display font-semibold mb-1">Mensagens por dia</h3>
           <p className="text-xs text-muted-foreground mb-4">Volume diário no período</p>
           {byDay.length === 0 ? <Empty /> : (
             <div className="h-56">
@@ -661,7 +556,7 @@ export default function MyDashboard() {
                   <XAxis dataKey="dia" fontSize={11} stroke="hsl(var(--muted-foreground))" />
                   <YAxis fontSize={11} stroke="hsl(var(--muted-foreground))" allowDecimals={false} />
                   <Tooltip contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8 }} />
-                  <Bar dataKey="ligacoes" fill="hsl(var(--primary))" radius={[6, 6, 0, 0]} />
+                  <Bar dataKey="mensagens" fill="hsl(var(--primary))" radius={[6, 6, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -669,18 +564,18 @@ export default function MyDashboard() {
         </Card>
 
         <Card className="p-6 shadow-card">
-          <h3 className="font-display font-semibold mb-1">Ligações por hora</h3>
+          <h3 className="font-display font-semibold mb-1">Mensagens por hora</h3>
           <p className="text-xs text-muted-foreground mb-4">Melhor horário destacado em verde</p>
-          {byHour.every(h => h.ligacoes === 0) ? <Empty /> : (
+          {byHour.every(h => h.mensagens === 0) ? <Empty /> : (
             <div className="h-56">
               <ResponsiveContainer>
                 <BarChart data={byHour} barSize={18}>
                   <XAxis dataKey="hora" fontSize={11} stroke="hsl(var(--muted-foreground))" />
                   <YAxis fontSize={11} stroke="hsl(var(--muted-foreground))" allowDecimals={false} />
                   <Tooltip contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8 }} />
-                  <Bar dataKey="ligacoes" radius={[4, 4, 0, 0]}>
+                  <Bar dataKey="mensagens" radius={[4, 4, 0, 0]}>
                     {byHour.map((h, i) => (
-                      <Cell key={i} fill={h.ligacoes === Math.max(...byHour.map(x => x.ligacoes)) && h.ligacoes > 0 ? "#10b981" : "hsl(var(--primary)/0.6)"} />
+                      <Cell key={i} fill={h.mensagens === Math.max(...byHour.map(x => x.mensagens)) && h.mensagens > 0 ? "#10b981" : "hsl(var(--primary)/0.6)"} />
                     ))}
                   </Bar>
                 </BarChart>
@@ -693,16 +588,14 @@ export default function MyDashboard() {
       {/* ── Comparativo semana passada vs esta semana ───────────────────── */}
       {(() => {
         const thisWeekStart = localMidnight(addDays(new Date(), -6));
-        const thisWeekCalls = calls.filter(c => new Date(c.started_at) >= thisWeekStart);
+        const thisWeekMensagens = mensagens.filter(c => new Date(c.enviada_em) >= thisWeekStart);
         const lastWeekMetrics = {
-          total:   lastWeekCalls.length,
-          visitas: lastWeekCalls.filter(c => c.outcome === "visita" || c.outcome === "agendado").length,
-          taxaPos: lastWeekCalls.length ? Math.round((lastWeekCalls.filter(c => ["proposta","visita","agendado","convertido","respondeu","mensagem_zap"].includes(c.outcome)).length / lastWeekCalls.length) * 100) : 0,
+          total: lastWeekMensagens.length,
+          taxaResposta: lastWeekMensagens.length ? Math.round((lastWeekMensagens.filter(m => m.respondida).length / lastWeekMensagens.length) * 100) : 0,
         };
         const thisWeekMetrics = {
-          total:   thisWeekCalls.length,
-          visitas: thisWeekCalls.filter(c => c.outcome === "visita" || c.outcome === "agendado").length,
-          taxaPos: thisWeekCalls.length ? Math.round((thisWeekCalls.filter(c => ["proposta","visita","agendado","convertido","respondeu","mensagem_zap"].includes(c.outcome)).length / thisWeekCalls.length) * 100) : 0,
+          total: thisWeekMensagens.length,
+          taxaResposta: thisWeekMensagens.length ? Math.round((thisWeekMensagens.filter(m => m.respondida).length / thisWeekMensagens.length) * 100) : 0,
         };
         if (thisWeekMetrics.total === 0 && lastWeekMetrics.total === 0) return null;
         function Diff({ curr, prev, suffix = "" }: { curr: number; prev: number; suffix?: string }) {
@@ -716,11 +609,10 @@ export default function MyDashboard() {
               <TrendingUp className="h-5 w-5 text-primary" />
               <h3 className="font-display font-semibold">Esta semana vs semana passada</h3>
             </div>
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-2 gap-4">
               {[
-                { label: "Ligações",    curr: thisWeekMetrics.total,   prev: lastWeekMetrics.total,   suffix: "" },
-                { label: "Visitas",     curr: thisWeekMetrics.visitas,  prev: lastWeekMetrics.visitas,  suffix: "" },
-                { label: "Taxa positivos", curr: thisWeekMetrics.taxaPos, prev: lastWeekMetrics.taxaPos, suffix: "%" },
+                { label: "Mensagens",      curr: thisWeekMetrics.total,        prev: lastWeekMetrics.total,        suffix: "" },
+                { label: "Taxa de resposta", curr: thisWeekMetrics.taxaResposta, prev: lastWeekMetrics.taxaResposta, suffix: "%" },
               ].map(item => (
                 <div key={item.label} className="text-center p-3 rounded-xl bg-muted/40">
                   <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">{item.label}</p>
@@ -736,7 +628,7 @@ export default function MyDashboard() {
         );
       })()}
 
-      {/* ── NOVO: Evolução do Check-up ────────────────────────────────────── */}
+      {/* ── Evolução do Check-up ────────────────────────────────────── */}
       {checkupHistory.length > 0 && (
         <Card className="p-6 shadow-card">
           <div className="flex items-center gap-2 mb-1"><Award className="h-5 w-5 text-purple-600" /><h3 className="font-display font-semibold">Evolução do Check-up ACELERA</h3></div>
@@ -768,9 +660,9 @@ export default function MyDashboard() {
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
           {leadsByStatus.map(s => (
-            <div key={s.key} className="rounded-xl p-3 border flex flex-col gap-1" style={{ borderColor: s.color + "40", background: s.color + "10" }}>
-              <div className="text-2xl font-display font-bold" style={{ color: s.color }}>{s.value}</div>
-              <div className="text-xs font-medium text-foreground">{s.status}</div>
+            <div key={s.key} className="rounded-xl p-3 border flex flex-col gap-1">
+              <div className="text-2xl font-display font-bold">{s.value}</div>
+              <Badge variant="secondary" className={`w-fit text-xs ${s.color}`}>{s.label}</Badge>
               <div className="text-xs text-muted-foreground">{leads.length ? Math.round((s.value / leads.length) * 100) : 0}% do total</div>
             </div>
           ))}
@@ -791,7 +683,6 @@ export default function MyDashboard() {
                     <span className="text-sm font-medium">{l.nome}</span>
                     <div className="flex items-center gap-3 text-xs text-muted-foreground">
                       <span className="text-amber-600 font-medium">{l.pendentes} pendentes</span>
-                      <span className="text-emerald-600 font-medium">{l.convertidos} convertidos</span>
                       <span>{l.total} total</span>
                     </div>
                   </div>
@@ -808,47 +699,40 @@ export default function MyDashboard() {
 
       {/* Tabela detalhada */}
       <Card className="p-6 shadow-card">
-        <div className="flex items-center gap-2 mb-4"><Activity className="h-5 w-5 text-primary" /><h3 className="font-display font-semibold">Detalhamento completo</h3></div>
+        <div className="flex items-center gap-2 mb-4"><Activity className="h-5 w-5 text-primary" /><h3 className="font-display font-semibold">Detalhamento por categoria</h3></div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b">
-                <th className="text-left py-2 pr-4 text-xs uppercase text-muted-foreground font-medium">Resultado</th>
                 <th className="text-left py-2 pr-4 text-xs uppercase text-muted-foreground font-medium">Categoria</th>
-                <th className="text-right py-2 pr-4 text-xs uppercase text-muted-foreground font-medium">Qtd</th>
-                <th className="text-right py-2 text-xs uppercase text-muted-foreground font-medium">% do total</th>
+                <th className="text-right py-2 pr-4 text-xs uppercase text-muted-foreground font-medium">Enviadas</th>
+                <th className="text-right py-2 pr-4 text-xs uppercase text-muted-foreground font-medium">Respondidas</th>
+                <th className="text-right py-2 text-xs uppercase text-muted-foreground font-medium">Taxa</th>
               </tr>
             </thead>
             <tbody>
-              {outcomeData.length === 0 ? (
-                <tr><td colSpan={4} className="text-center py-8 text-muted-foreground">Sem ligações no período</td></tr>
-              ) : outcomeData.map((d, i) => {
-                const meta = OUTCOME_META[d.key];
-                const pct  = metrics.total ? Math.round((d.value / metrics.total) * 100) : 0;
+              {metrics.total === 0 ? (
+                <tr><td colSpan={4} className="text-center py-8 text-muted-foreground">Sem mensagens no período</td></tr>
+              ) : MENSAGEM_CATEGORIAS.map(c => {
+                const rows = filteredMensagens.filter(m => m.categoria === c);
+                const respondidas = rows.filter(m => m.respondida).length;
+                const taxa = rows.length ? Math.round((respondidas / rows.length) * 100) : 0;
+                if (rows.length === 0) return null;
                 return (
-                  <tr key={i} className="border-b last:border-0 hover:bg-muted/30 transition-colors">
+                  <tr key={c} className="border-b last:border-0 hover:bg-muted/30 transition-colors">
                     <td className="py-2.5 pr-4">
-                      <div className="flex items-center gap-2">
-                        <div className="h-2.5 w-2.5 rounded-full shrink-0" style={{ background: d.color }} />
-                        <span className="font-medium">{d.name}</span>
-                      </div>
-                    </td>
-                    <td className="py-2.5 pr-4">
-                      <Badge variant="secondary" className={
-                        meta?.category === "positivo" ? "bg-emerald-500/10 text-emerald-700" :
-                        meta?.category === "retorno"  ? "bg-amber-500/10 text-amber-700" :
-                        "bg-rose-500/10 text-rose-700"
-                      }>
-                        {meta?.category === "positivo" ? "Positivo" : meta?.category === "retorno" ? "Retorno" : "Encerrado"}
+                      <Badge variant="secondary" className={MENSAGEM_CATEGORIA_COLOR[c]}>
+                        {MENSAGEM_CATEGORIA_EMOJI[c]} {MENSAGEM_CATEGORIA_LABELS[c]}
                       </Badge>
                     </td>
-                    <td className="py-2.5 pr-4 text-right font-bold tabular-nums">{d.value}</td>
+                    <td className="py-2.5 pr-4 text-right font-bold tabular-nums">{rows.length}</td>
+                    <td className="py-2.5 pr-4 text-right tabular-nums">{respondidas}</td>
                     <td className="py-2.5 text-right">
                       <div className="flex items-center justify-end gap-2">
                         <div className="h-1.5 w-16 bg-muted rounded-full overflow-hidden">
-                          <div className="h-full rounded-full" style={{ width: `${pct}%`, background: d.color }} />
+                          <div className="h-full rounded-full bg-primary" style={{ width: `${taxa}%` }} />
                         </div>
-                        <span className="text-muted-foreground tabular-nums w-8 text-right">{pct}%</span>
+                        <span className="text-muted-foreground tabular-nums w-8 text-right">{taxa}%</span>
                       </div>
                     </td>
                   </tr>

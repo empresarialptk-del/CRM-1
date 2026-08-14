@@ -37,31 +37,6 @@ export function useFollowupNotifications(userId: string | undefined) {
 
     const now = new Date();
     const soon = new Date(now.getTime() + 30 * 60 * 1000);
-    const todayStart = new Date(); todayStart.setHours(0,0,0,0);
-    const todayEnd = new Date(); todayEnd.setHours(23,59,59,999);
-
-    // Check visits scheduled for today (notify at start of day)
-    const isStartOfDay = now.getHours() < 9 || (now.getHours() === 9 && now.getMinutes() < 5);
-    if (isStartOfDay) {
-      const { data: todayVisits } = await supabase
-        .from("leads")
-        .select("id,nome,proximo_followup,status")
-        .in("status", ["visita_agendada","visita_confirmada","agendado"])
-        .gte("proximo_followup", todayStart.toISOString())
-        .lte("proximo_followup", todayEnd.toISOString());
-
-      if (todayVisits && todayVisits.length > 0) {
-        toast(`📅 ${todayVisits.length} visita${todayVisits.length > 1 ? "s" : ""} agendada${todayVisits.length > 1 ? "s" : ""} para hoje!`, {
-          description: todayVisits.map((v: any) => {
-            const firstName = v.nome?.split(" ")[0]?.replace(/^[^a-zA-ZÀ-ÿ]+/, "") ?? v.nome;
-            const time = v.proximo_followup ? new Date(v.proximo_followup).toLocaleTimeString("pt-BR", { hour:"2-digit", minute:"2-digit" }) : "";
-            return `${firstName}${time ? ` às ${time}` : ""}`;
-          }).join(", "),
-          duration: 15000,
-          action: { label: "Ver visitas", onClick: () => window.location.href = "/visitas" },
-        });
-      }
-    }
 
     const { data } = await supabase
       .from("leads")
@@ -89,7 +64,7 @@ export function useFollowupNotifications(userId: string | undefined) {
             : `Em ${minutesLeft} minutos (${timeStr}) — prepare-se para ligar`,
           duration: 10000,
           action: {
-            label: "Discar agora",
+            label: "Enviar mensagem",
             onClick: () => window.location.href = `/dialer?lead=${lead.id}`,
           },
         });

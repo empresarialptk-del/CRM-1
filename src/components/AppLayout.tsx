@@ -1,7 +1,7 @@
 import { toast } from "sonner";
 import { Link, NavLink, Outlet, useNavigate } from "react-router-dom";
 import { useFollowupNotifications } from "@/hooks/useFollowupNotifications";
-import { Phone, Users, LogOut, Headphones, Activity, Kanban, History, CalendarDays, Award, BookOpen, Search, X, TrendingDown, Settings, MapPin, BarChart2, ClipboardList, Home, FileText, ShieldCheck, Globe } from "lucide-react";
+import { Phone, Users, LogOut, Headphones, Activity, Kanban, History, Award, Search, X, TrendingDown, Settings, MapPin, ClipboardList, Home, ShieldCheck, Globe } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -166,7 +166,7 @@ export default function AppLayout() {
               <Headphones className="h-5 w-5 text-primary-foreground" />
             </div>
             <div>
-              <div className="font-display font-bold text-base leading-tight">MRV Call</div>
+              <div className="font-display font-bold text-base leading-tight">Renata Joias</div>
               <div className="text-[11px] text-sidebar-foreground/60 uppercase tracking-wider">Central de atendimento</div>
             </div>
           </Link>
@@ -181,15 +181,15 @@ export default function AppLayout() {
             <Home className="h-4 w-4" /> Início
           </NavLink>
 
-          {/* ── DISCAGEM ── */}
+          {/* ── MENSAGENS ── */}
           <div className="pt-3 pb-1">
-            <div className="text-[10px] uppercase tracking-widest text-sidebar-foreground/40 px-3 font-semibold">Discagem</div>
+            <div className="text-[10px] uppercase tracking-widest text-sidebar-foreground/40 px-3 font-semibold">Mensagens</div>
           </div>
           <NavLink to="/dialer" className={({ isActive }) => `${navItem} ${isActive ? active : ""}`}>
-            <Phone className="h-4 w-4" /> Discador
+            <Phone className="h-4 w-4" /> Enviador de Mensagens
           </NavLink>
           <NavLink to="/historico" className={({ isActive }) => `${navItem} ${isActive ? active : ""}`}>
-            <History className="h-4 w-4" /> Histórico de Ligações
+            <History className="h-4 w-4" /> Histórico de Mensagens
           </NavLink>
           <NavLink to="/historico-alteracoes" className={({ isActive }) => `${navItem} ${isActive ? active : ""}`}>
             <ShieldCheck className="h-4 w-4" /> Histórico de Alterações
@@ -208,9 +208,6 @@ export default function AppLayout() {
           <NavLink to="/crm" className={({ isActive }) => `${navItem} ${isActive ? active : ""}`}>
             <Kanban className="h-4 w-4" /> CRM Kanban
           </NavLink>
-          <NavLink to="/visitas" className={({ isActive }) => `${navItem} ${isActive ? active : ""}`}>
-            <CalendarDays className="h-4 w-4" /> Visitas
-          </NavLink>
 
           {/* ── ANÁLISE ── */}
           <div className="pt-3 pb-1">
@@ -219,14 +216,8 @@ export default function AppLayout() {
           <NavLink to="/pipeline" className={({ isActive }) => `${navItem} ${isActive ? active : ""}`}>
             <TrendingDown className="h-4 w-4" /> Pipeline
           </NavLink>
-          <NavLink to="/documentacao" className={({ isActive }) => `${navItem} ${isActive ? active : ""}`}>
-            <FileText className="h-4 w-4" /> Documentação
-          </NavLink>
           <NavLink to="/dashboard" className={({ isActive }) => `${navItem} ${isActive ? active : ""}`}>
-            <Activity className="h-4 w-4" /> Dashboard Discador
-          </NavLink>
-          <NavLink to="/visit-dashboard" className={({ isActive }) => `${navItem} ${isActive ? active : ""}`}>
-            <BarChart2 className="h-4 w-4" /> Dashboard Visitas
+            <Activity className="h-4 w-4" /> Dashboard de Mensagens
           </NavLink>
 
           {/* ── ATENDIMENTO ── */}
@@ -236,16 +227,13 @@ export default function AppLayout() {
           <NavLink to="/checkup" className={({ isActive }) => `${navItem} ${isActive ? active : ""}`}>
             <Award className="h-4 w-4" /> Check-up ACELERA
           </NavLink>
-          <NavLink to="/onboard-visita" className={({ isActive }) => `${navItem} ${isActive ? active : ""}`}>
-            <BookOpen className="h-4 w-4" /> Onboard de Visita
-          </NavLink>
         </nav>
 
         <div className="p-3 border-t border-sidebar-border space-y-1">
           {isVisitor && (
             <div className="px-3 py-2 rounded-lg bg-amber-500/20 text-amber-200 text-[11px] font-medium flex items-center justify-between mb-1">
               <span>👁 Modo visitante</span>
-              <button onClick={() => { localStorage.removeItem("mrvcall_visitor"); navigate("/auth"); }} className="underline text-[10px]">Sair</button>
+              <button onClick={() => { localStorage.removeItem("renatajoias_visitor"); navigate("/auth"); }} className="underline text-[10px]">Sair</button>
             </div>
           )}
           <NavLink to="/settings" className={({ isActive }) => `${navItem} ${isActive ? active : ""}`}>

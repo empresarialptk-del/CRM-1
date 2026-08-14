@@ -10,13 +10,9 @@ import Leads from "./pages/Leads.tsx";
 import CRM from "./pages/CRM.tsx";
 import CallHistory from "./pages/CallHistory.tsx";
 import MyDashboard from "./pages/MyDashboard.tsx";
-import Visits from "./pages/Visits.tsx";
 import Checkup from "./pages/Checkup.tsx";
-import VisitOnboard from "./pages/VisitOnboard.tsx";
 import LeadDetail from "./pages/LeadDetail.tsx";
 import Settings from "./pages/Settings.tsx";
-import VisitDashboard from "./pages/VisitDashboard.tsx";
-import Documentacao from "./pages/Documentacao.tsx";
 import HistoricoAlteracoes from "./pages/HistoricoAlteracoes.tsx";
 import Pipeline from "./pages/Pipeline.tsx";
 import Home from "./pages/Home.tsx";
@@ -43,13 +39,9 @@ const App = () => (
             <Route path="/crm"                   element={<CRM />} />
             <Route path="/historico"             element={<CallHistory />} />
             <Route path="/dashboard"             element={<MyDashboard />} />
-            <Route path="/visitas"               element={<Visits />} />
             <Route path="/checkup"               element={<Checkup />} />
-            <Route path="/onboard-visita"        element={<VisitOnboard />} />
             <Route path="/lead/:id"              element={<LeadDetail />} />
             <Route path="/settings"              element={<Settings />} />
-            <Route path="/visit-dashboard"       element={<VisitDashboard />} />
-            <Route path="/documentacao"          element={<Documentacao />} />
             <Route path="/historico-alteracoes"  element={<HistoricoAlteracoes />} />
             <Route path="/pipeline"              element={<Pipeline />} />
           </Route>

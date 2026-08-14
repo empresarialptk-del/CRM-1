@@ -8,51 +8,29 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { formatDuration, formatPhone, OUTCOME_LABELS, STATUS_COLOR, FUNNEL_STAGE, FUNNEL_STAGES } from "@/lib/crm";
 import {
-  Search, PhoneCall, Clock, CalendarDays, ChevronLeft, ChevronRight,
-  RefreshCw, Phone, TrendingUp, CheckCircle2, X, Eye,
+  formatPhone, MENSAGEM_CATEGORIAS, MENSAGEM_CATEGORIA_LABELS, MENSAGEM_CATEGORIA_COLOR,
+  MENSAGEM_CATEGORIA_EMOJI, type MensagemCategoria,
+} from "@/lib/crm";
+import {
+  Search, MessageCircle, CalendarDays, ChevronLeft, ChevronRight,
+  RefreshCw, MessageSquare, CheckCircle2, X, Eye, Send,
 } from "lucide-react";
 import { toast } from "sonner";
 
-type Call = {
+type Mensagem = {
   id: string;
   lead_id: string;
-  started_at: string;
-  duracao_segundos: number | null;
-  outcome: string;
-  outcome_label: string | null;
+  categoria: MensagemCategoria;
+  texto: string;
+  respondida: boolean;
   observacao: string | null;
+  enviada_em: string;
   lead?: { nome: string; telefone: string; list_id: string | null };
 };
 
 type LeadList = { id: string; nome: string };
 
-const OUTCOME_LABELS: Record<string, string> = {
-  proposta: "Proposta", visita: "Visita", agendado: "Agendado",
-  convertido: "Convertido", respondeu: "Respondeu", mensagem_zap: "Msg Zap",
-  nao_atendeu: "Não atendeu", retornar: "Retornar",
-  sem_interesse: "Sem interesse", numero_errado: "Nº errado",
-  numero_bloqueado: "Bloqueado", ja_comprou: "Já comprou",
-  comprou_carro: "Comprou carro", nao_quer_mais: "Não quer mais",
-  perdido: "Perdido", ignorado: "Ignorado", quer_casa: "Quer casa",
-  personalizado: "Personalizado",
-};
-
-const OUTCOME_COLOR: Record<string, string> = {
-  proposta: "bg-emerald-500/15 text-emerald-700", visita: "bg-emerald-500/15 text-emerald-700",
-  agendado: "bg-emerald-500/15 text-emerald-700", convertido: "bg-emerald-500/15 text-emerald-700",
-  respondeu: "bg-emerald-500/15 text-emerald-700", mensagem_zap: "bg-emerald-500/15 text-emerald-700",
-  nao_atendeu: "bg-amber-500/15 text-amber-700", retornar: "bg-amber-500/15 text-amber-700",
-  personalizado: "bg-violet-500/15 text-violet-700",
-  sem_interesse: "bg-rose-500/15 text-rose-700", numero_errado: "bg-rose-500/15 text-rose-700",
-  numero_bloqueado: "bg-rose-500/15 text-rose-700", ja_comprou: "bg-rose-500/15 text-rose-700",
-  comprou_carro: "bg-rose-500/15 text-rose-700", nao_quer_mais: "bg-rose-500/15 text-rose-700",
-  perdido: "bg-rose-500/15 text-rose-700", ignorado: "bg-rose-500/15 text-rose-700",
-  quer_casa: "bg-rose-500/15 text-rose-700",
-};
-
-const POSITIVE_OUTCOMES = new Set(["proposta","visita","agendado","convertido","respondeu","mensagem_zap"]);
 const PAGE_SIZE = 50;
 const WEEKDAYS = ["Dom","Seg","Ter","Qua","Qui","Sex","Sáb"];
 const MONTHS = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho",
@@ -149,18 +127,18 @@ export default function CallHistory() {
   const { user } = useAuth();
   const navigate = useNavigate();
 
-  const [calls, setCalls]               = useState<Call[]>([]);
-  const [totalCount, setTotalCount]     = useState(0);
-  const [page, setPage]                 = useState(0);
-  const [loading, setLoading]           = useState(true);
-  const [search, setSearch]             = useState("");
-  const [outcomeFilter, setOutcomeFilter] = useState("all");
-  const [activeList, setActiveList]     = useState("all");
-  const [dateFrom, setDateFrom]         = useState<Date | null>(null);
-  const [dateTo, setDateTo]             = useState<Date | null>(null);
-  const [datePreset, setDatePreset]     = useState<string>("all");
-  const [lists, setLists]               = useState<LeadList[]>([]);
-  const [stats, setStats]               = useState({ total: 0, totalSec: 0, positivos: 0, avgSec: 0 });
+  const [mensagens, setMensagens]         = useState<Mensagem[]>([]);
+  const [totalCount, setTotalCount]       = useState(0);
+  const [page, setPage]                   = useState(0);
+  const [loading, setLoading]             = useState(true);
+  const [search, setSearch]               = useState("");
+  const [categoriaFilter, setCategoriaFilter] = useState("all");
+  const [activeList, setActiveList]       = useState("all");
+  const [dateFrom, setDateFrom]           = useState<Date | null>(null);
+  const [dateTo, setDateTo]               = useState<Date | null>(null);
+  const [datePreset, setDatePreset]       = useState<string>("all");
+  const [lists, setLists]                 = useState<LeadList[]>([]);
+  const [stats, setStats]                 = useState({ total: 0, respondidas: 0, taxaResposta: 0 });
 
   const totalPages = Math.ceil(totalCount / PAGE_SIZE);
 
@@ -169,42 +147,39 @@ export default function CallHistory() {
       .then(({ data }) => setLists((data ?? []) as LeadList[]));
   }, []);
 
-  // Aplica filtros de data e outcome na query do Supabase
   const applyServerFilters = useCallback((q: any) => {
     if (dateFrom) {
       const start = new Date(dateFrom); start.setHours(0, 0, 0, 0);
-      q = q.gte("started_at", start.toISOString());
+      q = q.gte("enviada_em", start.toISOString());
     }
     if (dateTo) {
       const end = new Date(dateTo); end.setHours(23, 59, 59, 999);
-      q = q.lte("started_at", end.toISOString());
+      q = q.lte("enviada_em", end.toISOString());
     }
-    if (outcomeFilter !== "all") q = q.eq("outcome", outcomeFilter);
+    if (categoriaFilter !== "all") q = q.eq("categoria", categoriaFilter);
     return q;
-  }, [dateFrom, dateTo, outcomeFilter]);
+  }, [dateFrom, dateTo, categoriaFilter]);
 
-  // Filtro client-side por lista e busca (join)
-  const applyClientFilters = useCallback((data: Call[]) => {
+  const applyClientFilters = useCallback((data: Mensagem[]) => {
     let r = data;
-    if (activeList !== "all") r = r.filter(c => c.lead?.list_id === activeList);
+    if (activeList !== "all") r = r.filter(m => m.lead?.list_id === activeList);
     if (search.trim()) {
       const q = search.toLowerCase();
-      r = r.filter(c => c.lead?.nome?.toLowerCase().includes(q) || c.lead?.telefone?.includes(q));
+      r = r.filter(m => m.lead?.nome?.toLowerCase().includes(q) || m.lead?.telefone?.includes(q));
     }
     return r;
   }, [activeList, search]);
 
-  // Carrega página da tabela
-  const loadCalls = useCallback(async (targetPage = 0) => {
+  const loadMensagens = useCallback(async (targetPage = 0) => {
     if (!user) return;
     setLoading(true);
     const from = targetPage * PAGE_SIZE;
 
     let q = supabase
-      .from("calls")
-      .select("id,lead_id,started_at,duracao_segundos,outcome,outcome_label,observacao,lead:leads(nome,telefone,list_id)", { count: "exact" })
+      .from("mensagens")
+      .select("id,lead_id,categoria,texto,respondida,observacao,enviada_em,lead:leads(nome,telefone,list_id)", { count: "exact" })
       .eq("atendente_id", user.id)
-      .order("started_at", { ascending: false })
+      .order("enviada_em", { ascending: false })
       .range(from, from + PAGE_SIZE - 1);
 
     q = applyServerFilters(q);
@@ -212,18 +187,17 @@ export default function CallHistory() {
     const { data, count, error } = await q;
     if (error) { toast.error("Erro: " + error.message); setLoading(false); return; }
 
-    setCalls(applyClientFilters((data ?? []) as Call[]));
+    setMensagens(applyClientFilters((data ?? []) as unknown as Mensagem[]));
     setTotalCount(count ?? 0);
     setLoading(false);
   }, [user, applyServerFilters, applyClientFilters]);
 
-  // Carrega stats — só count e soma, sem JOIN pesado
   const loadStats = useCallback(async () => {
     if (!user) return;
 
     let q = supabase
-      .from("calls")
-      .select("duracao_segundos,outcome,lead_id")
+      .from("mensagens")
+      .select("respondida,lead_id")
       .eq("atendente_id", user.id);
 
     q = applyServerFilters(q);
@@ -231,26 +205,24 @@ export default function CallHistory() {
     const { data } = await q;
     let list = (data ?? []) as any[];
 
-    // Filtro por lista (precisa dos lead_ids da lista)
     if (activeList !== "all") {
       const { data: leadIds } = await supabase
         .from("leads").select("id").eq("list_id", activeList);
       const ids = new Set((leadIds ?? []).map((l: any) => l.id));
-      list = list.filter(c => ids.has(c.lead_id));
+      list = list.filter(m => ids.has(m.lead_id));
     }
 
-    const totalSec = list.reduce((a, c) => a + (c.duracao_segundos || 0), 0);
+    const respondidas = list.filter(m => m.respondida).length;
     setStats({
       total: list.length,
-      totalSec,
-      positivos: list.filter(c => POSITIVE_OUTCOMES.has(c.outcome)).length,
-      avgSec: list.length ? Math.round(totalSec / list.length) : 0,
+      respondidas,
+      taxaResposta: list.length ? Math.round((respondidas / list.length) * 100) : 0,
     });
   }, [user, applyServerFilters, activeList]);
 
-  useEffect(() => { setPage(0); loadCalls(0); loadStats(); }, [dateFrom, dateTo, outcomeFilter, activeList]);
-  useEffect(() => { const t = setTimeout(() => { setPage(0); loadCalls(0); }, 300); return () => clearTimeout(t); }, [search]);
-  useEffect(() => { loadCalls(page); }, [page]);
+  useEffect(() => { setPage(0); loadMensagens(0); loadStats(); }, [dateFrom, dateTo, categoriaFilter, activeList]);
+  useEffect(() => { const t = setTimeout(() => { setPage(0); loadMensagens(0); }, 300); return () => clearTimeout(t); }, [search]);
+  useEffect(() => { loadMensagens(page); }, [page]);
 
   function applyPreset(preset: string) {
     setDatePreset(preset);
@@ -263,6 +235,13 @@ export default function CallHistory() {
     setPage(0);
   }
 
+  async function toggleRespondida(msg: Mensagem) {
+    const { error } = await supabase.from("mensagens").update({ respondida: !msg.respondida }).eq("id", msg.id);
+    if (error) { toast.error(error.message); return; }
+    setMensagens(prev => prev.map(m => m.id === msg.id ? { ...m, respondida: !m.respondida } : m));
+    loadStats();
+  }
+
   const periodLabel = dateFrom || dateTo
     ? [dateFrom?.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }), dateTo?.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })]
         .filter(Boolean).join(" → ")
@@ -272,14 +251,13 @@ export default function CallHistory() {
     <div className="p-8 max-w-7xl mx-auto">
       <header className="mb-6 flex items-end justify-between flex-wrap gap-4">
         <div>
-          <h1 className="font-display text-3xl font-bold">Histórico de Ligações</h1>
-          <p className="text-muted-foreground capitalize">{periodLabel} · {stats.total} ligações</p>
+          <h1 className="font-display text-3xl font-bold">Histórico de Mensagens</h1>
+          <p className="text-muted-foreground capitalize">{periodLabel} · {stats.total} mensagens</p>
         </div>
         <div className="flex gap-3 flex-wrap">
-          <StatBox icon={<Phone className="h-4 w-4" />}        label="Ligações"   value={String(stats.total)} />
-          <StatBox icon={<Clock className="h-4 w-4" />}        label="Tempo total" value={formatDuration(stats.totalSec)} />
-          <StatBox icon={<TrendingUp className="h-4 w-4" />}   label="Tempo médio" value={formatDuration(stats.avgSec)} />
-          <StatBox icon={<CheckCircle2 className="h-4 w-4" />} label="Positivos"   value={String(stats.positivos)} />
+          <StatBox icon={<MessageCircle className="h-4 w-4" />} label="Enviadas"      value={String(stats.total)} />
+          <StatBox icon={<CheckCircle2 className="h-4 w-4" />}  label="Respondidas"   value={String(stats.respondidas)} />
+          <StatBox icon={<Send className="h-4 w-4" />}          label="Taxa resposta" value={`${stats.taxaResposta}%`} />
         </div>
       </header>
 
@@ -343,15 +321,17 @@ export default function CallHistory() {
           </div>
         )}
 
-        <Select value={outcomeFilter} onValueChange={v => { setOutcomeFilter(v); setPage(0); }}>
-          <SelectTrigger className="w-48"><SelectValue placeholder="Todos os resultados" /></SelectTrigger>
+        <Select value={categoriaFilter} onValueChange={v => { setCategoriaFilter(v); setPage(0); }}>
+          <SelectTrigger className="w-48"><SelectValue placeholder="Todas as categorias" /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">Todos os resultados</SelectItem>
-            {Object.entries(OUTCOME_LABELS).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
+            <SelectItem value="all">Todas as categorias</SelectItem>
+            {MENSAGEM_CATEGORIAS.map(c => (
+              <SelectItem key={c} value={c}>{MENSAGEM_CATEGORIA_EMOJI[c]} {MENSAGEM_CATEGORIA_LABELS[c]}</SelectItem>
+            ))}
           </SelectContent>
         </Select>
 
-        <Button variant="ghost" size="icon" onClick={() => { loadCalls(page); loadStats(); }} disabled={loading}>
+        <Button variant="ghost" size="icon" onClick={() => { loadMensagens(page); loadStats(); }} disabled={loading}>
           <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
         </Button>
       </Card>
@@ -364,10 +344,10 @@ export default function CallHistory() {
               <TableHead>Telefone</TableHead>
               <TableHead>Data</TableHead>
               <TableHead>Hora</TableHead>
-              <TableHead>Duração</TableHead>
-              <TableHead>Resultado</TableHead>
-              <TableHead>Observação</TableHead>
-              <TableHead className="w-16 text-right">Ação</TableHead>
+              <TableHead>Categoria</TableHead>
+              <TableHead>Mensagem</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead className="w-20 text-right">Ação</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -379,26 +359,23 @@ export default function CallHistory() {
                   ))}
                 </TableRow>
               ))
-            ) : calls.length === 0 ? (
+            ) : mensagens.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={8} className="text-center py-16 text-muted-foreground">
-                  <PhoneCall className="h-10 w-10 mx-auto mb-3 text-muted-foreground/30" />
-                  Nenhuma ligação encontrada para esse filtro.
+                  <MessageSquare className="h-10 w-10 mx-auto mb-3 text-muted-foreground/30" />
+                  Nenhuma mensagem encontrada para esse filtro.
                 </TableCell>
               </TableRow>
-            ) : calls.map(call => {
-              const outcomeLabel = call.outcome === "personalizado" && call.outcome_label
-                ? call.outcome_label : (OUTCOME_LABELS[call.outcome] ?? call.outcome);
-              const badgeColor = STATUS_COLOR[call.outcome] ?? "bg-muted text-muted-foreground";
-              const date = new Date(call.started_at);
+            ) : mensagens.map(msg => {
+              const date = new Date(msg.enviada_em);
               return (
-                <TableRow key={call.id} className="hover:bg-muted/40 cursor-pointer"
-                  onClick={() => call.lead_id && navigate(`/dialer?lead=${call.lead_id}`)}>
+                <TableRow key={msg.id} className="hover:bg-muted/40 cursor-pointer"
+                  onClick={() => msg.lead_id && navigate(`/dialer?lead=${msg.lead_id}`)}>
                   <TableCell className="font-medium">
-                    {call.lead?.nome ?? <span className="text-muted-foreground italic">Lead removido</span>}
+                    {msg.lead?.nome ?? <span className="text-muted-foreground italic">Lead removido</span>}
                   </TableCell>
                   <TableCell className="tabular-nums text-muted-foreground">
-                    {call.lead?.telefone ? formatPhone(call.lead.telefone) : "—"}
+                    {msg.lead?.telefone ? formatPhone(msg.lead.telefone) : "—"}
                   </TableCell>
                   <TableCell className="tabular-nums text-muted-foreground">
                     {date.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "2-digit" })}
@@ -406,22 +383,31 @@ export default function CallHistory() {
                   <TableCell className="tabular-nums text-muted-foreground">
                     {date.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
                   </TableCell>
-                  <TableCell className="tabular-nums">
-                    {call.duracao_segundos != null ? formatDuration(call.duracao_segundos) : "—"}
-                  </TableCell>
                   <TableCell>
-                    <Badge variant="secondary" className={`text-xs ${badgeColor}`}>{outcomeLabel}</Badge>
+                    <Badge variant="secondary" className={`text-xs ${MENSAGEM_CATEGORIA_COLOR[msg.categoria]}`}>
+                      {MENSAGEM_CATEGORIA_EMOJI[msg.categoria]} {MENSAGEM_CATEGORIA_LABELS[msg.categoria]}
+                    </Badge>
                   </TableCell>
-                  <TableCell className="text-sm text-muted-foreground max-w-xs truncate">{call.observacao ?? "—"}</TableCell>
+                  <TableCell className="text-sm text-muted-foreground max-w-xs truncate">{msg.texto}</TableCell>
+                  <TableCell onClick={e => e.stopPropagation()}>
+                    <button
+                      onClick={() => toggleRespondida(msg)}
+                      className={`text-[11px] font-semibold px-2 py-1 rounded-full transition-colors ${
+                        msg.respondida ? "bg-emerald-100 text-emerald-700" : "bg-muted text-muted-foreground hover:bg-muted/70"
+                      }`}
+                    >
+                      {msg.respondida ? "Respondida ✓" : "Marcar respondida"}
+                    </button>
+                  </TableCell>
                   <TableCell className="text-right" onClick={e => e.stopPropagation()}>
                     <div className="flex justify-end gap-1">
                       <Button size="icon" variant="ghost" title="Ver lead"
-                        onClick={() => call.lead_id && navigate(`/lead/${call.lead_id}`)}>
+                        onClick={() => msg.lead_id && navigate(`/lead/${msg.lead_id}`)}>
                         <Eye className="h-4 w-4" />
                       </Button>
-                      <Button size="icon" variant="ghost" title="Discar novamente"
-                        onClick={() => call.lead_id && navigate(`/dialer?lead=${call.lead_id}`)}>
-                        <PhoneCall className="h-4 w-4" />
+                      <Button size="icon" variant="ghost" title="Enviar nova mensagem"
+                        onClick={() => msg.lead_id && navigate(`/dialer?lead=${msg.lead_id}`)}>
+                        <MessageCircle className="h-4 w-4" />
                       </Button>
                     </div>
                   </TableCell>

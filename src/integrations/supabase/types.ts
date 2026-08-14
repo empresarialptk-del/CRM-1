@@ -7,80 +7,51 @@ export type Json =
   | Json[]
 
 export type Database = {
-  // Allows to automatically instantiate createClient with right options
-  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.5"
+    PostgrestVersion: "14.15"
   }
   public: {
     Tables: {
-      calls: {
+      compras: {
         Row: {
-          agendado_para: string | null
-          atendente_id: string
-          duracao_segundos: number
-          ended_at: string
+          created_at: string
+          data_compra: string
           id: string
           lead_id: string
-          observacao: string | null
-          outcome: Database["public"]["Enums"]["call_outcome"]
-          outcome_label: string | null
-          started_at: string
+          origem: string
+          produto: string
+          quantidade: number
+          valor: number
         }
         Insert: {
-          agendado_para?: string | null
-          atendente_id: string
-          duracao_segundos?: number
-          ended_at?: string
+          created_at?: string
+          data_compra?: string
           id?: string
           lead_id: string
-          observacao?: string | null
-          outcome: Database["public"]["Enums"]["call_outcome"]
-          outcome_label?: string | null
-          started_at?: string
+          origem?: string
+          produto: string
+          quantidade?: number
+          valor?: number
         }
         Update: {
-          agendado_para?: string | null
-          atendente_id?: string
-          duracao_segundos?: number
-          ended_at?: string
+          created_at?: string
+          data_compra?: string
           id?: string
           lead_id?: string
-          observacao?: string | null
-          outcome?: Database["public"]["Enums"]["call_outcome"]
-          outcome_label?: string | null
-          started_at?: string
+          origem?: string
+          produto?: string
+          quantidade?: number
+          valor?: number
         }
         Relationships: [
           {
-            foreignKeyName: "calls_lead_id_fkey"
+            foreignKeyName: "compras_lead_id_fkey"
             columns: ["lead_id"]
             isOneToOne: false
             referencedRelation: "leads"
             referencedColumns: ["id"]
           },
         ]
-      }
-      custom_outcomes: {
-        Row: {
-          created_at: string
-          id: string
-          label: string
-          user_id: string
-        }
-        Insert: {
-          created_at?: string
-          id?: string
-          label: string
-          user_id: string
-        }
-        Update: {
-          created_at?: string
-          id?: string
-          label?: string
-          user_id?: string
-        }
-        Relationships: []
       }
       lead_lists: {
         Row: {
@@ -162,6 +133,50 @@ export type Database = {
           },
         ]
       }
+      mensagens: {
+        Row: {
+          atendente_id: string
+          canal: string
+          categoria: Database["public"]["Enums"]["mensagem_categoria"]
+          enviada_em: string
+          id: string
+          lead_id: string
+          observacao: string | null
+          respondida: boolean
+          texto: string
+        }
+        Insert: {
+          atendente_id: string
+          canal?: string
+          categoria: Database["public"]["Enums"]["mensagem_categoria"]
+          enviada_em?: string
+          id?: string
+          lead_id: string
+          observacao?: string | null
+          respondida?: boolean
+          texto: string
+        }
+        Update: {
+          atendente_id?: string
+          canal?: string
+          categoria?: Database["public"]["Enums"]["mensagem_categoria"]
+          enviada_em?: string
+          id?: string
+          lead_id?: string
+          observacao?: string | null
+          respondida?: boolean
+          texto?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mensagens_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           created_at: string
@@ -216,45 +231,22 @@ export type Database = {
     }
     Enums: {
       app_role: "admin" | "gerente" | "atendente"
-      call_outcome:
-        | "atendeu"
-        | "nao_atendeu"
-        | "retornar"
-        | "agendado"
-        | "convertido"
-        | "sem_interesse"
-        | "numero_errado"
-        | "personalizado"
-        | "ignorado"
-        | "perdido"
-        | "proposta"
-        | "visita"
-        | "quer_casa"
-        | "ja_comprou"
-        | "comprou_carro"
-        | "nao_quer_mais"
-        | "respondeu"
-        | "mensagem_zap"
-        | "numero_bloqueado"
       lead_status:
         | "novo"
         | "nao_atendeu"
         | "retornar"
-        | "agendado"
-        | "convertido"
-        | "sem_interesse"
-        | "numero_errado"
-        | "ignorado"
-        | "perdido"
-        | "proposta"
-        | "visita"
-        | "quer_casa"
-        | "ja_comprou"
-        | "comprou_carro"
-        | "nao_quer_mais"
         | "respondeu"
         | "mensagem_zap"
-        | "numero_bloqueado"
+        | "interesse"
+        | "negociacao"
+        | "aguardando_pagamento"
+        | "pago"
+        | "entregue"
+        | "pos_venda"
+        | "sem_interesse"
+        | "numero_errado"
+        | "perdido"
+      mensagem_categoria: "recompra" | "novidade" | "desconto" | "promocao"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -383,47 +375,23 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["admin", "gerente", "atendente"],
-      call_outcome: [
-        "atendeu",
-        "nao_atendeu",
-        "retornar",
-        "agendado",
-        "convertido",
-        "sem_interesse",
-        "numero_errado",
-        "personalizado",
-        "ignorado",
-        "perdido",
-        "proposta",
-        "visita",
-        "quer_casa",
-        "ja_comprou",
-        "comprou_carro",
-        "nao_quer_mais",
-        "respondeu",
-        "mensagem_zap",
-        "numero_bloqueado",
-      ],
       lead_status: [
         "novo",
         "nao_atendeu",
         "retornar",
-        "agendado",
-        "convertido",
-        "sem_interesse",
-        "numero_errado",
-        "ignorado",
-        "perdido",
-        "proposta",
-        "visita",
-        "quer_casa",
-        "ja_comprou",
-        "comprou_carro",
-        "nao_quer_mais",
         "respondeu",
         "mensagem_zap",
-        "numero_bloqueado",
+        "interesse",
+        "negociacao",
+        "aguardando_pagamento",
+        "pago",
+        "entregue",
+        "pos_venda",
+        "sem_interesse",
+        "numero_errado",
+        "perdido",
       ],
+      mensagem_categoria: ["recompra", "novidade", "desconto", "promocao"],
     },
   },
 } as const

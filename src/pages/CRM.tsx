@@ -384,73 +384,73 @@ const MAPS_URL = "https://maps.app.goo.gl/C3Vjs1sXz6S3dAFt8";
 
 function getMsgs(nome: string, stageKey: string): { label: string; text: string }[] {
   const n = cleanFirstName(nome);
-  const loc = `Localizacao da loja MRV:\n${MAPS_URL}`;
+  const loc = `Localizacao da loja Renata Joias:\n${MAPS_URL}`;
 
   const msgsMap: Record<string, { label: string; text: string }[]> = {
     A: [
-      { label: "📞 Primeiro contato",    text: `Oi ${n}! Sou o Pedro da MRV, tentei te ligar mas não consegui falar. Você tem interesse em conhecer nossos imóveis?` },
-      { label: "🔄 Resistente",          text: `Oi ${n}! Pedro da MRV. Sei que é difícil atender ligação desconhecida. Mas tenho uma oportunidade incrível de imóvel pra te mostrar. Vale 2 minutinhos?` },
+      { label: "📞 Primeiro contato",    text: `Oi ${n}! Sou o Pedro da Renata Joias, tentei te ligar mas não consegui falar. Você tem interesse em conhecer nossas joias?` },
+      { label: "🔄 Resistente",          text: `Oi ${n}! Pedro da Renata Joias. Sei que é difícil atender ligação desconhecida. Mas tenho uma oportunidade incrível de imóvel pra te mostrar. Vale 2 minutinhos?` },
     ],
     B: [
-      { label: "💬 Retomar contato",     text: `Oi ${n}! Pedro da MRV aqui. Conversamos rapidinho — queria saber se ainda tem interesse em conhecer nossos imóveis.` },
-      { label: "🔄 Resistente",          text: `Oi ${n}! Pedro da MRV. Sei que você está ocupado, mas não queria deixar passar essa oportunidade sem te mostrar. É rapidinho, prometo!` },
+      { label: "💬 Retomar contato",     text: `Oi ${n}! Pedro da Renata Joias aqui. Conversamos rapidinho — queria saber se ainda tem interesse em conhecer nossas joias.` },
+      { label: "🔄 Resistente",          text: `Oi ${n}! Pedro da Renata Joias. Sei que você está ocupado, mas não queria deixar passar essa oportunidade sem te mostrar. É rapidinho, prometo!` },
     ],
     C: [
-      { label: "📅 Marcar visita",       text: `Oi ${n}! Pedro da MRV aqui. Você demonstrou interesse nos nossos imóveis — quando conseguimos marcar uma visita rápida à loja?` },
-      { label: "🔄 Resistente",          text: `Oi ${n}! Pedro da MRV. Entendo que está avaliando — mas uma visita de 15 minutos pode mudar tudo. Sem compromisso! Quando fica bom?` },
-      { label: "📍 Visita + local",      text: `Oi ${n}! Pedro da MRV. Vamos marcar uma visita? Fica fácil de chegar:\n${loc}` },
+      { label: "📅 Marcar visita",       text: `Oi ${n}! Pedro da Renata Joias aqui. Você demonstrou interesse nos nossas joias — quando conseguimos marcar uma visita rápida à loja?` },
+      { label: "🔄 Resistente",          text: `Oi ${n}! Pedro da Renata Joias. Entendo que está avaliando — mas uma visita de 15 minutos pode mudar tudo. Sem compromisso! Quando fica bom?` },
+      { label: "📍 Visita + local",      text: `Oi ${n}! Pedro da Renata Joias. Vamos marcar uma visita? Fica fácil de chegar:\n${loc}` },
     ],
     D: [
-      { label: "📅 Confirmar data",      text: `Oi ${n}! Pedro da MRV aqui. Você queria visitar a loja — quando fica bom pra você? Tenho horários essa semana!` },
-      { label: "📍 Localização",         text: `Oi ${n}! Segue a localização da loja MRV pra facilitar:\n${loc}` },
-      { label: "📅 Data + local",        text: `Oi ${n}! Pedro da MRV. Vamos confirmar sua visita? Quando fica bom?\n\n${loc}` },
-      { label: "🔄 Resistente",          text: `Oi ${n}! Pedro da MRV. Sei que está difícil encaixar na agenda, mas vale muito a pena conhecer pessoalmente. 15 minutinhos só! Quando consegue?` },
+      { label: "📅 Confirmar data",      text: `Oi ${n}! Pedro da Renata Joias aqui. Você queria visitar a loja — quando fica bom pra você? Tenho horários essa semana!` },
+      { label: "📍 Localização",         text: `Oi ${n}! Segue a localização da loja Renata Joias pra facilitar:\n${loc}` },
+      { label: "📅 Data + local",        text: `Oi ${n}! Pedro da Renata Joias. Vamos confirmar sua visita? Quando fica bom?\n\n${loc}` },
+      { label: "🔄 Resistente",          text: `Oi ${n}! Pedro da Renata Joias. Sei que está difícil encaixar na agenda, mas vale muito a pena conhecer pessoalmente. 15 minutinhos só! Quando consegue?` },
     ],
     E: [
-      { label: "✅ Confirmar visita",    text: `Oi ${n}! Pedro da MRV aqui, passando para confirmar sua visita à loja MRV. Confirma presença?` },
-      { label: "🔔 Lembrete",           text: `Oi ${n}! Pedro da MRV. Só um lembrete da sua visita à loja MRV amanhã. Estamos te esperando!` },
-      { label: "📍 Como chegar",        text: `Oi ${n}! Segue a localização da loja MRV para facilitar sua chegada:\n${loc}` },
-      { label: "✅ Confirmar + local",  text: `Oi ${n}! Passando para confirmar sua visita à loja MRV. Confirma presença?\n\n${loc}` },
+      { label: "✅ Confirmar visita",    text: `Oi ${n}! Pedro da Renata Joias aqui, passando para confirmar sua visita à loja Renata Joias. Confirma presença?` },
+      { label: "🔔 Lembrete",           text: `Oi ${n}! Pedro da Renata Joias. Só um lembrete da sua visita à loja Renata Joias amanhã. Estamos te esperando!` },
+      { label: "📍 Como chegar",        text: `Oi ${n}! Segue a localização da loja Renata Joias para facilitar sua chegada:\n${loc}` },
+      { label: "✅ Confirmar + local",  text: `Oi ${n}! Passando para confirmar sua visita à loja Renata Joias. Confirma presença?\n\n${loc}` },
     ],
     F: [
-      { label: "📋 Solicitar docs",      text: `Oi ${n}! Pedro da MRV aqui. Que ótimo que você visitou! Para darmos continuidade, precisamos de alguns documentos. Posso te passar a lista?` },
-      { label: "💬 Dúvidas pós-visita",  text: `Oi ${n}! Pedro da MRV. Ficou com alguma dúvida sobre o imóvel que visitou? Estou à disposição!` },
-      { label: "🔄 Resistente",          text: `Oi ${n}! Pedro da MRV. Sei que pós-visita tem muito a pensar, mas não quero que você perca essa oportunidade. Posso te ajudar?` },
+      { label: "📋 Solicitar docs",      text: `Oi ${n}! Pedro da Renata Joias aqui. Que ótimo que você visitou! Para darmos continuidade, precisamos de alguns documentos. Posso te passar a lista?` },
+      { label: "💬 Dúvidas pós-visita",  text: `Oi ${n}! Pedro da Renata Joias. Ficou com alguma dúvida sobre o imóvel que visitou? Estou à disposição!` },
+      { label: "🔄 Resistente",          text: `Oi ${n}! Pedro da Renata Joias. Sei que pós-visita tem muito a pensar, mas não quero que você perca essa oportunidade. Posso te ajudar?` },
     ],
     G: [
-      { label: "📄 Cobrar documentos",   text: `Oi ${n}! Pedro da MRV aqui. Passando para saber se conseguiu reunir os documentos necessários. Posso te ajudar com alguma dúvida?` },
-      { label: "🔄 Urgência",            text: `Oi ${n}! Pedro da MRV. Os documentos estão pendentes e não quero que você perca a oportunidade. Me avisa o que está faltando!` },
+      { label: "📄 Cobrar documentos",   text: `Oi ${n}! Pedro da Renata Joias aqui. Passando para saber se conseguiu reunir os documentos necessários. Posso te ajudar com alguma dúvida?` },
+      { label: "🔄 Urgência",            text: `Oi ${n}! Pedro da Renata Joias. Os documentos estão pendentes e não quero que você perca a oportunidade. Me avisa o que está faltando!` },
     ],
     H: [
-      { label: "🔍 Status CPF",          text: `Oi ${n}! Pedro da MRV aqui. Seu CPF está em análise — assim que tiver retorno te aviso imediatamente!` },
+      { label: "🔍 Status CPF",          text: `Oi ${n}! Pedro da Renata Joias aqui. Seu CPF está em análise — assim que tiver retorno te aviso imediatamente!` },
       { label: "✅ CPF aprovado",        text: `Oi ${n}! Ótima notícia! Seu CPF foi aprovado! Podemos dar continuidade ao processo. Quando podemos conversar?` },
     ],
     I: [
-      { label: "✅ Crédito aprovado",    text: `Oi ${n}! Pedro da MRV com ótima notícia — seu crédito foi aprovado! Vamos para a próxima etapa?` },
-      { label: "📝 Próximos passos",     text: `Oi ${n}! Pedro da MRV aqui. Crédito aprovado! Agora vamos gerar o contrato. Quando fica bom para assinarmos?` },
+      { label: "✅ Crédito aprovado",    text: `Oi ${n}! Pedro da Renata Joias com ótima notícia — seu crédito foi aprovado! Vamos para a próxima etapa?` },
+      { label: "📝 Próximos passos",     text: `Oi ${n}! Pedro da Renata Joias aqui. Crédito aprovado! Agora vamos gerar o contrato. Quando fica bom para assinarmos?` },
     ],
     J: [
-      { label: "📝 Assinar contrato",    text: `Oi ${n}! Pedro da MRV aqui. Seu contrato está pronto para assinatura! Quando podemos resolver isso?` },
-      { label: "🔄 Urgência",            text: `Oi ${n}! Pedro da MRV. O contrato está aguardando sua assinatura — não deixa para depois! Me avisa quando consegue?` },
+      { label: "📝 Assinar contrato",    text: `Oi ${n}! Pedro da Renata Joias aqui. Seu contrato está pronto para assinatura! Quando podemos resolver isso?` },
+      { label: "🔄 Urgência",            text: `Oi ${n}! Pedro da Renata Joias. O contrato está aguardando sua assinatura — não deixa para depois! Me avisa quando consegue?` },
     ],
     K: [
-      { label: "💰 Boleto gerado",       text: `Oi ${n}! Pedro da MRV aqui. Contrato assinado! Seu boleto foi gerado. Qualquer dúvida estou à disposição!` },
+      { label: "💰 Boleto gerado",       text: `Oi ${n}! Pedro da Renata Joias aqui. Contrato assinado! Seu boleto foi gerado. Qualquer dúvida estou à disposição!` },
     ],
     L: [
-      { label: "🏦 Repasse",             text: `Oi ${n}! Pedro da MRV aqui. Boleto pago! Estamos encaminhando o repasse. Em breve terei novidades!` },
+      { label: "🏦 Repasse",             text: `Oi ${n}! Pedro da Renata Joias aqui. Boleto pago! Estamos encaminhando o repasse. Em breve terei novidades!` },
     ],
     M: [
-      { label: "🏦 Status repasse",      text: `Oi ${n}! Pedro da MRV aqui. Seu repasse está em andamento — assim que tiver novidade te aviso!` },
-      { label: "📋 Próximos passos",     text: `Oi ${n}! Pedro da MRV. O repasse está sendo processado, em breve você terá o registro do imóvel. Alguma dúvida?` },
+      { label: "🏦 Status repasse",      text: `Oi ${n}! Pedro da Renata Joias aqui. Seu repasse está em andamento — assim que tiver novidade te aviso!` },
+      { label: "📋 Próximos passos",     text: `Oi ${n}! Pedro da Renata Joias. O repasse está sendo processado, em breve você terá o registro do imóvel. Alguma dúvida?` },
     ],
     N: [
-      { label: "🏆 Parabéns!",           text: `Oi ${n}! Pedro da MRV aqui. Parabéns! Seu imóvel está registrado! Foi um prazer fazer parte dessa conquista!` },
-      { label: "⭐ Indicação",           text: `Oi ${n}! Pedro da MRV. Seu imóvel está registrado! Se conhecer alguém buscando o primeiro imóvel, pode me indicar — ficarei feliz em ajudar!` },
+      { label: "🏆 Parabéns!",           text: `Oi ${n}! Pedro da Renata Joias aqui. Parabéns! Seu imóvel está registrado! Foi um prazer fazer parte dessa conquista!` },
+      { label: "⭐ Indicação",           text: `Oi ${n}! Pedro da Renata Joias. Seu imóvel está registrado! Se conhecer alguém buscando o primeiro imóvel, pode me indicar — ficarei feliz em ajudar!` },
     ],
   };
 
   return msgsMap[stageKey] ?? [
-    { label: "💬 Entrar em contato",     text: `Oi ${n}! Pedro da MRV aqui. Passando para saber como está o andamento do seu processo.` },
+    { label: "💬 Entrar em contato",     text: `Oi ${n}! Pedro da Renata Joias aqui. Passando para saber como está o andamento do seu processo.` },
   ];
 }
 

@@ -1,9 +1,9 @@
 // ── Perfil do usuário — configurações globais do sistema ─────────────────────
-// Usado em: Dialer (scripts, WA), Checkup, VisitOnboard, notificações
+// Usado em: Dialer (scripts, WA), Checkup, notificações
 
 export type UserProfile = {
   nome: string;           // Ex: "Pedro"
-  empresa: string;        // Ex: "MRV"
+  empresa: string;        // Ex: "Renata Joias"
   endereco: string;       // Ex: "ao lado da Rodoviária — Roberto Silvério"
   horarioInicio: number;  // hora (0-23) para notificações
   horarioFim: number;
@@ -11,12 +11,12 @@ export type UserProfile = {
   metaVisitas: number;
 };
 
-const PROFILE_KEY = "mrvcall_profile_v1";
+const PROFILE_KEY = "renatajoias_profile_v1";
 
 const DEFAULT_PROFILE: UserProfile = {
   nome:          "Pedro",
-  empresa:       "MRV",
-  endereco:      "MRV ao lado da Rodoviária do Centro — Roberto Silvério",
+  empresa:       "Renata Joias",
+  endereco:      "Renata Joias — endereço da loja",
   horarioInicio: 8,
   horarioFim:    18,
   metaLigacoes:  150,

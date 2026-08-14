@@ -108,7 +108,7 @@ export default function SettingsPage() {
                       <Input
                         value={profile.empresa}
                         onChange={e => update("empresa", e.target.value)}
-                        placeholder="Ex: MRV"
+                        placeholder="Ex: Renata Joias"
                       />
                     </div>
                   </div>
@@ -121,7 +121,7 @@ export default function SettingsPage() {
                     <Input
                       value={profile.endereco}
                       onChange={e => update("endereco", e.target.value)}
-                      placeholder="Ex: MRV ao lado da Rodoviária do Centro"
+                      placeholder="Ex: Renata Joias — endereço da loja"
                     />
                     <p className="text-[11px] text-muted-foreground">
                       Aparece nas mensagens de confirmação de visita pelo WhatsApp

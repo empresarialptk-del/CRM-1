@@ -7,7 +7,7 @@ const VISITOR_ID = "00000000-0000-0000-0000-000000000000";
 
 const VISITOR_USER = {
   id: VISITOR_ID,
-  email: "visitante@mrvcall.com",
+  email: "visitante@renatajoias.com",
   app_metadata: {}, user_metadata: {}, aud: "authenticated",
   created_at: new Date().toISOString(),
 } as unknown as User;
@@ -15,7 +15,7 @@ const VISITOR_USER = {
 const VISITOR_SESSION = { user: VISITOR_USER } as unknown as Session;
 
 function isVisitorMode() {
-  try { return localStorage.getItem("mrvcall_visitor") === "true"; }
+  try { return localStorage.getItem("renatajoias_visitor") === "true"; }
   catch { return false; }
 }
 

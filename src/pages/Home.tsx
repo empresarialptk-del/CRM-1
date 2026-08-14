@@ -274,21 +274,14 @@ export default function Home() {
           </h1>
           <p className="text-muted-foreground text-sm mt-1">
             {new Date().toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long" })}
-            {" · Pedro da MRV"}
+            {" · Pedro da Renata Joias"}
           </p>
         </div>
         <div className="flex gap-2">
-          {fds ? (
-            <button onClick={() => navigate("/visitas")}
-              className="flex items-center gap-2 px-5 py-3 rounded-xl bg-emerald-600 text-white font-bold hover:bg-emerald-700 transition-colors shadow-md text-sm">
-              <CalendarDays className="h-4 w-4"/> Ver visitas
-            </button>
-          ) : (
-            <button onClick={() => navigate("/dialer")}
-              className="flex items-center gap-2 px-5 py-3 rounded-xl bg-primary text-primary-foreground font-bold hover:bg-primary/90 transition-colors shadow-md text-sm">
-              <Zap className="h-4 w-4"/> Iniciar discagem
-            </button>
-          )}
+          <button onClick={() => navigate("/dialer")}
+            className="flex items-center gap-2 px-5 py-3 rounded-xl bg-primary text-primary-foreground font-bold hover:bg-primary/90 transition-colors shadow-md text-sm">
+            <Zap className="h-4 w-4"/> Enviar mensagens
+          </button>
           <button onClick={load}
             className="flex items-center gap-2 px-4 py-3 rounded-xl border bg-background hover:bg-muted transition-colors text-sm">
             <RefreshCw className="h-4 w-4"/>
@@ -329,15 +322,15 @@ export default function Home() {
             </button>
           )}
           {faltaram.length > 0 && (
-            <button onClick={() => navigate("/visitas")}
+            <button onClick={() => navigate("/leads")}
               className="flex items-start gap-3 p-4 rounded-xl bg-amber-50 border border-amber-200 hover:bg-amber-100 transition-colors text-left w-full">
               <PhoneMissed className="h-5 w-5 text-amber-600 shrink-0 mt-0.5"/>
               <div>
-                <div className="font-bold text-amber-800 text-sm">{faltaram.length} não vieram à visita</div>
+                <div className="font-bold text-amber-800 text-sm">{faltaram.length} precisam de retorno</div>
                 <div className="text-xs text-amber-700 mt-0.5">
                   {faltaram.slice(0,2).map(l => cleanName(l.nome)).join(", ")}
                   {faltaram.length > 2 ? ` +${faltaram.length - 2}` : ""}
-                  {" · Remarcar ou encerrar"}
+                  {" · Ver leads"}
                 </div>
               </div>
             </button>
@@ -428,17 +421,17 @@ export default function Home() {
           {/* Indicadores pós-visita */}
           <div className="flex gap-3 mt-3 pt-3 border-t flex-wrap">
             {posVisita > 0 && (
-              <button onClick={() => navigate("/visitas")}
+              <button onClick={() => navigate("/crm")}
                 className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 transition-colors">
                 <Trophy className="h-3.5 w-3.5 text-emerald-600"/>
                 <span className="text-xs font-bold text-emerald-700">{posVisita} em pós-venda (F→N)</span>
               </button>
             )}
             {semData > 0 && (
-              <button onClick={() => navigate("/visitas")}
+              <button onClick={() => navigate("/crm")}
                 className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-orange-50 border border-orange-200 hover:bg-orange-100 transition-colors">
                 <AlertTriangle className="h-3.5 w-3.5 text-orange-600"/>
-                <span className="text-xs font-bold text-orange-700">{semData} querem visitar mas sem data</span>
+                <span className="text-xs font-bold text-orange-700">{semData} leads sem próximo passo definido</span>
               </button>
             )}
           </div>
@@ -458,7 +451,7 @@ export default function Home() {
                   {visitasHoje.length}
                 </span>
               </div>
-              <button onClick={() => navigate("/visitas")}
+              <button onClick={() => navigate("/leads")}
                 className="text-xs text-primary hover:underline flex items-center gap-1">
                 Ver todas <ChevronRight className="h-3 w-3"/>
               </button>
@@ -579,7 +572,7 @@ export default function Home() {
                   {proximasVisitas.length}
                 </span>
               </div>
-              <button onClick={() => navigate("/visitas")}
+              <button onClick={() => navigate("/leads")}
                 className="text-xs text-primary hover:underline flex items-center gap-1">
                 Ver todas <ChevronRight className="h-3 w-3"/>
               </button>
@@ -644,8 +637,8 @@ export default function Home() {
           <p className="text-sm font-semibold mb-3">Ações rápidas</p>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
             {[
-              { icon: <Zap className="h-5 w-5"/>,          label: "Discador",       sub: "Iniciar ligações",       path: "/dialer",        color: "text-primary",     bg: "bg-primary/10"    },
-              { icon: <CalendarDays className="h-5 w-5"/>,  label: "Visitas",        sub: "Gerir agendamentos",     path: "/visitas",        color: "text-emerald-600", bg: "bg-emerald-50"    },
+              { icon: <Zap className="h-5 w-5"/>,          label: "Mensagens",      sub: "Enviar WhatsApp",        path: "/dialer",        color: "text-primary",     bg: "bg-primary/10"    },
+              { icon: <CalendarDays className="h-5 w-5"/>,  label: "Histórico",      sub: "Mensagens enviadas",     path: "/historico",      color: "text-emerald-600", bg: "bg-emerald-50"    },
               { icon: <Phone className="h-5 w-5"/>,         label: "Pipeline",       sub: "Funil de vendas",        path: "/pipeline",       color: "text-violet-600",  bg: "bg-violet-50"     },
               { icon: <TrendingUp className="h-5 w-5"/>,    label: "CRM",            sub: "Kanban de leads",        path: "/crm",            color: "text-blue-600",    bg: "bg-blue-50"       },
             ].map(a => (

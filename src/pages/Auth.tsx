@@ -17,7 +17,7 @@ const schema = z.object({
 });
 
 // Código de acesso visitante — mude para compartilhar com alguém
-const VISITOR_CODE = "mrvcall2026";
+const VISITOR_CODE = "renatajoias2026";
 
 export default function Auth() {
   const navigate = useNavigate();
@@ -46,7 +46,7 @@ export default function Auth() {
 
   function handleVisitorAccess() {
     if (visitorCode.trim() === VISITOR_CODE) {
-      localStorage.setItem("mrvcall_visitor", "true");
+      localStorage.setItem("renatajoias_visitor", "true");
       navigate("/pipeline");
       toast.success("Acesso visitante ativado — somente visualização");
     } else {
@@ -62,7 +62,7 @@ export default function Auth() {
             <Headphones className="h-6 w-6" />
           </div>
           <div>
-            <div className="font-display font-bold text-xl">MRV Call</div>
+            <div className="font-display font-bold text-xl">Renata Joias</div>
             <div className="text-xs text-white/60 uppercase tracking-widest">Central de atendimento</div>
           </div>
         </div>
@@ -74,7 +74,7 @@ export default function Auth() {
             Discagem ágil, feedback instantâneo e métricas claras para você e sua equipe.
           </p>
         </div>
-        <div className="text-xs text-white/50">© MRV — Pedro Pires Call Center</div>
+        <div className="text-xs text-white/50">© Renata Joias</div>
       </div>
       <div className="flex items-center justify-center p-6">
         <Card className="w-full max-w-md p-8 shadow-card">
@@ -91,7 +91,7 @@ export default function Auth() {
                   <Input id="name" name="name" placeholder="Maria Silva" /></div>
               </TabsContent>
               <div><Label htmlFor="email">E-mail</Label>
-                <Input id="email" name="email" type="email" placeholder="voce@mrv.com" required /></div>
+                <Input id="email" name="email" type="email" placeholder="voce@renatajoias.com" required /></div>
               <div><Label htmlFor="password">Senha</Label>
                 <Input id="password" name="password" type="password" required /></div>
               <Button type="submit" disabled={loading} className="w-full bg-gradient-brand hover:opacity-95 shadow-elegant">

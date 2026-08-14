@@ -548,3 +548,85 @@ export const URGENCIA_COLOR: Record<RecorrenciaUrgencia, string> = {
   atrasada:"bg-orange-100 text-orange-700",
   critica: "bg-red-100 text-red-700",
 };
+
+// ══════════════════════════════════════════════════════════════════════════════
+// STATUS REAL DO LEAD (enum public.lead_status no banco atual)
+// Os mapas STATUS_LABELS/STATUS_COLOR/FUNNEL_STAGES acima são de um funil antigo
+// (perfumes) que não bate mais com o enum do banco. Estes dois mapas abaixo são
+// a fonte correta pro enum atual — usar em qualquer tela nova que trabalhe com
+// leads.status diretamente.
+// ══════════════════════════════════════════════════════════════════════════════
+export type LeadStatus =
+  | "novo" | "nao_atendeu" | "retornar" | "respondeu" | "mensagem_zap"
+  | "interesse" | "negociacao"
+  | "aguardando_pagamento" | "pago" | "entregue" | "pos_venda"
+  | "sem_interesse" | "numero_errado" | "perdido";
+
+export const LEAD_STATUSES: LeadStatus[] = [
+  "novo", "nao_atendeu", "retornar", "respondeu", "mensagem_zap",
+  "interesse", "negociacao",
+  "aguardando_pagamento", "pago", "entregue", "pos_venda",
+  "sem_interesse", "numero_errado", "perdido",
+];
+
+export const LEAD_STATUS_LABELS: Record<LeadStatus, string> = {
+  novo: "Novo",
+  nao_atendeu: "Não atendeu",
+  retornar: "Retornar",
+  respondeu: "Respondeu",
+  mensagem_zap: "Mensagem Zap",
+  interesse: "Interesse",
+  negociacao: "Negociação",
+  aguardando_pagamento: "Aguardando pagamento",
+  pago: "Pago",
+  entregue: "Entregue",
+  pos_venda: "Pós-venda",
+  sem_interesse: "Sem interesse",
+  numero_errado: "Número errado",
+  perdido: "Perdido",
+};
+
+export const LEAD_STATUS_COLOR: Record<LeadStatus, string> = {
+  novo: "bg-slate-100 text-slate-600",
+  nao_atendeu: "bg-amber-100 text-amber-700",
+  retornar: "bg-blue-100 text-blue-700",
+  respondeu: "bg-sky-100 text-sky-700",
+  mensagem_zap: "bg-green-100 text-green-700",
+  interesse: "bg-cyan-100 text-cyan-700",
+  negociacao: "bg-violet-100 text-violet-700",
+  aguardando_pagamento: "bg-orange-100 text-orange-700",
+  pago: "bg-emerald-100 text-emerald-800",
+  entregue: "bg-blue-200 text-blue-800",
+  pos_venda: "bg-teal-100 text-teal-700",
+  sem_interesse: "bg-gray-100 text-gray-600",
+  numero_errado: "bg-red-100 text-red-600",
+  perdido: "bg-gray-100 text-gray-500",
+};
+
+export const LEAD_STATUS_LOST: LeadStatus[] = ["sem_interesse", "numero_errado", "perdido"];
+
+// ── Categorias de mensagem (enum public.mensagem_categoria) ──────────────────
+export type MensagemCategoria = "recompra" | "novidade" | "desconto" | "promocao";
+
+export const MENSAGEM_CATEGORIAS: MensagemCategoria[] = ["recompra", "novidade", "desconto", "promocao"];
+
+export const MENSAGEM_CATEGORIA_LABELS: Record<MensagemCategoria, string> = {
+  recompra: "Recompra",
+  novidade: "Novidade",
+  desconto: "Desconto",
+  promocao: "Promoção",
+};
+
+export const MENSAGEM_CATEGORIA_COLOR: Record<MensagemCategoria, string> = {
+  recompra: "bg-sky-100 text-sky-700 border-sky-200",
+  novidade: "bg-violet-100 text-violet-700 border-violet-200",
+  desconto: "bg-amber-100 text-amber-700 border-amber-200",
+  promocao: "bg-rose-100 text-rose-700 border-rose-200",
+};
+
+export const MENSAGEM_CATEGORIA_EMOJI: Record<MensagemCategoria, string> = {
+  recompra: "💎",
+  novidade: "✨",
+  desconto: "🏷️",
+  promocao: "🔥",
+};

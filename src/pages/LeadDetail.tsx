@@ -404,9 +404,9 @@ export default function LeadDetail() {
                       className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-purple-50 border border-purple-200 text-xs font-medium text-purple-700 hover:bg-purple-100 transition-colors">
                       <Award className="h-3.5 w-3.5"/> Check-up
                     </button>
-                    <button onClick={() => navigate("/visitas")}
+                    <button onClick={() => navigate(`/dialer?lead=${lead.id}`)}
                       className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-50 border border-blue-200 text-xs font-medium text-blue-700 hover:bg-blue-100 transition-colors">
-                      <CalendarDays className="h-3.5 w-3.5"/> Ver visitas
+                      <CalendarDays className="h-3.5 w-3.5"/> Enviar mensagem
                     </button>
                   </div>
                 </div>

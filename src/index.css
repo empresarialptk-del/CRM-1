@@ -6,7 +6,7 @@
 
 @layer base {
   :root {
-    /* MRV brand: verde institucional + laranja destaque */
+    /* Renata Joias: paleta institucional */
     --background: 0 0% 100%;
     --foreground: 150 30% 10%;
 
@@ -16,19 +16,19 @@
     --popover: 0 0% 100%;
     --popover-foreground: 150 30% 10%;
 
-    /* Primary = verde escuro MRV #006B3F */
+    /* Primary = verde escuro #006B3F */
     --primary: 150 100% 21%;
     --primary-foreground: 0 0% 100%;
     --primary-glow: 150 92% 32%;
 
-    /* Secondary = verde médio MRV #079D56 */
+    /* Secondary = verde médio #079D56 */
     --secondary: 150 92% 32%;
     --secondary-foreground: 0 0% 100%;
 
     --muted: 150 20% 95%;
     --muted-foreground: 150 10% 38%;
 
-    /* Accent = laranja MRV #FF8B22 */
+    /* Accent = laranja #FF8B22 */
     --accent: 28 100% 95%;
     --accent-foreground: 28 100% 35%;
 
