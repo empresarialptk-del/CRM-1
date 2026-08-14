@@ -10,7 +10,6 @@ import Leads from "./pages/Leads.tsx";
 import CRM from "./pages/CRM.tsx";
 import CallHistory from "./pages/CallHistory.tsx";
 import MyDashboard from "./pages/MyDashboard.tsx";
-import Checkup from "./pages/Checkup.tsx";
 import LeadDetail from "./pages/LeadDetail.tsx";
 import Settings from "./pages/Settings.tsx";
 import HistoricoAlteracoes from "./pages/HistoricoAlteracoes.tsx";
@@ -41,7 +40,6 @@ const App = () => (
             <Route path="/calendario"            element={<Calendario />} />
             <Route path="/historico"             element={<CallHistory />} />
             <Route path="/dashboard"             element={<MyDashboard />} />
-            <Route path="/checkup"               element={<Checkup />} />
             <Route path="/lead/:id"              element={<LeadDetail />} />
             <Route path="/settings"              element={<Settings />} />
             <Route path="/historico-alteracoes"  element={<HistoricoAlteracoes />} />

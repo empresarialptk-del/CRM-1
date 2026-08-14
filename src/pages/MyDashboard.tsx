@@ -12,21 +12,21 @@ import {
 } from "@/lib/crm";
 import {
   PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer,
-  BarChart, Bar, XAxis, YAxis, LineChart, Line, CartesianGrid,
+  BarChart, Bar, XAxis, YAxis,
 } from "recharts";
 import {
   MessageCircle, TrendingUp, Target, Users,
   Flame, Star, Activity, Filter,
-  ChevronLeft, ChevronRight, CalendarDays, X, Award, Pencil, Save, Zap, CheckCircle2,
+  ChevronLeft, ChevronRight, CalendarDays, X, Pencil, Save, Zap, CheckCircle2,
 } from "lucide-react";
 
 // ── Metas editáveis ──────────────────────────────────────────────────────────
 const META_KEY = "dashboard_metas_mensagens_v1";
 function loadMetas() {
-  try { const r = localStorage.getItem(META_KEY); return r ? JSON.parse(r) : { mensagens: 30, taxaResposta: 40, checkup: 8 }; }
-  catch { return { mensagens: 30, taxaResposta: 40, checkup: 8 }; }
+  try { const r = localStorage.getItem(META_KEY); return r ? JSON.parse(r) : { mensagens: 30, taxaResposta: 40 }; }
+  catch { return { mensagens: 30, taxaResposta: 40 }; }
 }
-function saveMetas(m: { mensagens: number; taxaResposta: number; checkup: number }) {
+function saveMetas(m: { mensagens: number; taxaResposta: number }) {
   try { localStorage.setItem(META_KEY, JSON.stringify(m)); } catch {}
 }
 
@@ -215,7 +215,7 @@ function MetaBar({ label, current, meta, color }: { label: string; current: numb
 }
 
 type MensagemRow = { id: string; categoria: MensagemCategoria; status_contato: MensagemStatusContato; enviada_em: string; lead_id: string };
-type LeadRow = { id: string; status: string; list_id: string | null; created_at: string; observacoes: string | null };
+type LeadRow = { id: string; status: string; list_id: string | null; created_at: string };
 
 // ── Dashboard principal ───────────────────────────────────────────────────────
 export default function MyDashboard() {
@@ -231,7 +231,6 @@ export default function MyDashboard() {
   const [metas, setMetas]             = useState(loadMetas);
   const [editingMeta, setEditingMeta] = useState(false);
   const [metaDraft, setMetaDraft]     = useState(loadMetas);
-  const [checkupHistory, setCheckupHistory] = useState<{ date: string; nota: number }[]>([]);
   const [lastWeekMensagens, setLastWeekMensagens] = useState<MensagemRow[]>([]);
 
   useEffect(() => {
@@ -258,20 +257,10 @@ export default function MyDashboard() {
         setLastWeekMensagens((data ?? []) as MensagemRow[]);
       })(),
       (async () => {
-        let q = supabase.from("leads").select("id,status,list_id,created_at,observacoes").order("created_at", { ascending: false });
+        let q = supabase.from("leads").select("id,status,list_id,created_at").order("created_at", { ascending: false });
         if (activeList !== "all") q = q.eq("list_id", activeList);
         const { data } = await q;
         setLeads((data ?? []) as LeadRow[]);
-        const history: { date: string; nota: number }[] = [];
-        (data ?? []).forEach((lead: any) => {
-          if (!lead.observacoes) return;
-          lead.observacoes.split("\n").forEach((line: string) => {
-            const m = line.match(/\[CHECK-UP (\d{2}\/\d{2}\/\d{4})\] Nota: ([\d.]+)\/10/);
-            if (m) { const [d,mo,y] = m[1].split("/"); history.push({ date: `${y}-${mo}-${d}`, nota: parseFloat(m[2]) }); }
-          });
-        });
-        history.sort((a, b) => a.date.localeCompare(b.date));
-        setCheckupHistory(history);
       })(),
       (async () => {
         const { data } = await supabase.from("lead_lists").select("id,nome").order("created_at", { ascending: false });
@@ -344,18 +333,6 @@ export default function MyDashboard() {
   const isDaily = preset === "today" || preset === "yesterday" ||
     (preset === "custom" && !!customRange.start && (!customRange.end || isSameDay(customRange.start, customRange.end)));
 
-  const { start: periodStart, end: periodEnd } = rangeFromPreset(preset, customRange);
-  const checkupPeriodo = useMemo(() => {
-    return checkupHistory.filter(h => {
-      const d = new Date(h.date + "T12:00:00");
-      return (!periodStart || d >= periodStart) && (!periodEnd || d <= periodEnd);
-    });
-  }, [checkupHistory, periodStart, periodEnd]);
-
-  const notaMediaCheckup = checkupPeriodo.length
-    ? Math.round(checkupPeriodo.reduce((a, b) => a + b.nota, 0) / checkupPeriodo.length * 10) / 10
-    : null;
-
   function saveMetaEdit() { setMetas(metaDraft); saveMetas(metaDraft); setEditingMeta(false); }
 
   if (loading) {
@@ -397,7 +374,7 @@ export default function MyDashboard() {
         <KPI icon={<MessageCircle />}  label="Mensagens enviadas"   value={String(metrics.total)}              color="bg-blue-500/10 text-blue-600"     />
         <KPI icon={<CheckCircle2 />}   label="Respondidas"          value={String(metrics.respondidas)}        color="bg-emerald-500/10 text-emerald-600"/>
         <KPI icon={<TrendingUp />}     label="Taxa de resposta"     value={`${metrics.taxaResposta}%`}         color="bg-cyan-500/10 text-cyan-600"     />
-        <KPI icon={<Award />}          label="Nota check-up"        value={notaMediaCheckup ? `${notaMediaCheckup}/10` : "—"} color="bg-purple-500/10 text-purple-600" />
+        <KPI icon={<Users />}          label="Leads"                value={String(leads.length)}               color="bg-purple-500/10 text-purple-600" />
       </div>
 
       {/* ── Relatório do dia (aparece após 17h no preset hoje) ─────────── */}
@@ -447,11 +424,10 @@ export default function MyDashboard() {
           )}
         </div>
         {editingMeta ? (
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-2 gap-4">
             {[
               { key: "mensagens",    label: "💬 Mensagens/dia" },
               { key: "taxaResposta", label: "📈 Taxa resposta % (meta)" },
-              { key: "checkup",      label: "⭐ Nota check-up" },
             ].map(m => (
               <div key={m.key}>
                 <label className="text-xs font-medium text-muted-foreground mb-1 block">{m.label}</label>
@@ -464,7 +440,6 @@ export default function MyDashboard() {
           <div className="space-y-4">
             <MetaBar label="Mensagens enviadas" current={metrics.total} meta={metas.mensagens} color="bg-blue-500" />
             <MetaBar label="Taxa de resposta"    current={metrics.taxaResposta} meta={metas.taxaResposta} color="bg-emerald-500" />
-            {notaMediaCheckup !== null && <MetaBar label="Nota check-up" current={notaMediaCheckup} meta={metas.checkup} color="bg-purple-500" />}
           </div>
         )}
       </Card>
@@ -627,29 +602,6 @@ export default function MyDashboard() {
           </Card>
         );
       })()}
-
-      {/* ── Evolução do Check-up ────────────────────────────────────── */}
-      {checkupHistory.length > 0 && (
-        <Card className="p-6 shadow-card">
-          <div className="flex items-center gap-2 mb-1"><Award className="h-5 w-5 text-purple-600" /><h3 className="font-display font-semibold">Evolução do Check-up ACELERA</h3></div>
-          <p className="text-xs text-muted-foreground mb-4">
-            {checkupHistory.length} avaliações
-            {notaMediaCheckup !== null && <span className="ml-2 font-semibold text-purple-600">· Média: {notaMediaCheckup}/10</span>}
-          </p>
-          <div className="h-56">
-            <ResponsiveContainer>
-              <LineChart data={checkupHistory}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                <XAxis dataKey="date" fontSize={10} stroke="hsl(var(--muted-foreground))" tickFormatter={d => new Date(d + "T12:00:00").toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })} />
-                <YAxis domain={[0, 10]} fontSize={10} stroke="hsl(var(--muted-foreground))" />
-                <Tooltip labelFormatter={d => new Date(d + "T12:00:00").toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric" })} formatter={(v: any) => [`${v}/10`, "Nota"]} contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8 }} />
-                <Line type="monotone" dataKey={() => metas.checkup} stroke="#e9d5ff" strokeDasharray="4 4" dot={false} name="Meta" />
-                <Line type="monotone" dataKey="nota" stroke="#8b5cf6" strokeWidth={2.5} dot={{ fill: "#8b5cf6", r: 4 }} activeDot={{ r: 6 }} name="Nota" />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-        </Card>
-      )}
 
       {/* Status dos leads */}
       <Card className="p-6 shadow-card">

@@ -266,11 +266,6 @@ export default function LeadDetail() {
   const compraResumo = summarizeCompras(compras);
   const ticketTier    = classifyTicketTier(compraResumo.ticketMedio, loadProfile());
 
-  const checkupNotas = (lead?.observacoes ?? "").split("\n")
-    .map(l => { const m = l.match(/\[CHECK-UP ([^\]]+)\] Nota: ([\d.]+)\/10/); return m ? { data: m[1], nota: parseFloat(m[2]) } : null; })
-    .filter(Boolean) as { data: string; nota: number }[];
-  const ultimoCheckup = checkupNotas[checkupNotas.length - 1] ?? null;
-
   const score = lead ? calcLeadScore({
     callCount:     totalMensagens,
     positiveCount: respondidas,
@@ -472,10 +467,6 @@ export default function LeadDetail() {
                       className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-green-50 border border-green-200 text-xs font-medium text-green-700 hover:bg-green-100 transition-colors">
                       <MessageCircle className="h-3.5 w-3.5"/> WhatsApp
                     </a>
-                    <button onClick={() => navigate(`/checkup?lead=${lead.id}`)}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-purple-50 border border-purple-200 text-xs font-medium text-purple-700 hover:bg-purple-100 transition-colors">
-                      <Award className="h-3.5 w-3.5"/> Check-up
-                    </button>
                     <button onClick={() => navigate(`/dialer?lead=${lead.id}`)}
                       className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-50 border border-blue-200 text-xs font-medium text-blue-700 hover:bg-blue-100 transition-colors">
                       <CalendarDays className="h-3.5 w-3.5"/> Enviar mensagem
@@ -876,26 +867,6 @@ export default function LeadDetail() {
                 <p className="text-[10px] text-muted-foreground/60 mt-2">
                   {new Date(mensagens.find(m => m.observacao)!.enviada_em).toLocaleDateString("pt-BR", { day:"2-digit", month:"2-digit", year:"2-digit" })}
                 </p>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Check-up */}
-          {ultimoCheckup && (
-            <Card className="shadow-card">
-              <CardContent className="p-5">
-                <div className="flex items-center justify-between mb-2">
-                  <p className="font-semibold text-sm flex items-center gap-1.5">
-                    <Award className="h-4 w-4 text-purple-600"/> Check-up ACELERA
-                  </p>
-                  <button onClick={() => navigate(`/checkup?lead=${lead.id}`)}
-                    className="text-xs text-primary hover:underline">Refazer →</button>
-                </div>
-                <div className="text-3xl font-black text-purple-600">{ultimoCheckup.nota}<span className="text-base font-normal text-muted-foreground">/10</span></div>
-                <div className="h-1.5 bg-muted rounded-full mt-2 overflow-hidden">
-                  <div className="h-full bg-purple-500 rounded-full" style={{ width: `${ultimoCheckup.nota * 10}%` }}/>
-                </div>
-                <p className="text-[10px] text-muted-foreground mt-1.5">Avaliado em {ultimoCheckup.data}</p>
               </CardContent>
             </Card>
           )}

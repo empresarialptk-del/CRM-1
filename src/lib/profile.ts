@@ -1,5 +1,5 @@
 // ── Perfil do usuário — configurações globais do sistema ─────────────────────
-// Usado em: Dialer (scripts, WA), Checkup, notificações
+// Usado em: Dialer (scripts, WA), notificações
 
 export type UserProfile = {
   nome: string;           // Ex: "Pedro"

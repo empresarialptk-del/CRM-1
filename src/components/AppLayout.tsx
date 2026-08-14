@@ -1,7 +1,7 @@
 import { toast } from "sonner";
 import { Link, NavLink, Outlet, useNavigate } from "react-router-dom";
 import { useFollowupNotifications } from "@/hooks/useFollowupNotifications";
-import { Phone, Users, LogOut, Headphones, Activity, Kanban, History, Award, Search, X, TrendingDown, Settings, MapPin, ClipboardList, Home, ShieldCheck, Gem, CalendarDays } from "lucide-react";
+import { Phone, Users, LogOut, Headphones, Activity, Kanban, History, Search, X, TrendingDown, Settings, MapPin, ClipboardList, Home, ShieldCheck, Gem, CalendarDays } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -221,14 +221,6 @@ export default function AppLayout() {
           </NavLink>
           <NavLink to="/dashboard" className={({ isActive }) => `${navItem} ${isActive ? active : ""}`}>
             <Activity className="h-4 w-4" /> Dashboard de Mensagens
-          </NavLink>
-
-          {/* ── ATENDIMENTO ── */}
-          <div className="pt-3 pb-1">
-            <div className="text-[10px] uppercase tracking-widest text-sidebar-foreground/40 px-3 font-semibold">Atendimento</div>
-          </div>
-          <NavLink to="/checkup" className={({ isActive }) => `${navItem} ${isActive ? active : ""}`}>
-            <Award className="h-4 w-4" /> Check-up ACELERA
           </NavLink>
         </nav>
 
