@@ -10,7 +10,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
   formatPhone, MENSAGEM_CATEGORIAS, MENSAGEM_CATEGORIA_LABELS, MENSAGEM_CATEGORIA_COLOR,
-  MENSAGEM_CATEGORIA_EMOJI, type MensagemCategoria,
+  MENSAGEM_CATEGORIA_EMOJI, MENSAGEM_STATUS_CONTATO_ORDER, MENSAGEM_STATUS_CONTATO_LABELS,
+  MENSAGEM_STATUS_CONTATO_COLOR, MENSAGEM_STATUS_CONTATO_EMOJI,
+  type MensagemCategoria, type MensagemStatusContato,
 } from "@/lib/crm";
 import {
   Search, MessageCircle, CalendarDays, ChevronLeft, ChevronRight,
@@ -23,7 +25,7 @@ type Mensagem = {
   lead_id: string;
   categoria: MensagemCategoria;
   texto: string;
-  respondida: boolean;
+  status_contato: MensagemStatusContato;
   observacao: string | null;
   enviada_em: string;
   lead?: { nome: string; telefone: string; list_id: string | null };
@@ -177,7 +179,7 @@ export default function CallHistory() {
 
     let q = supabase
       .from("mensagens")
-      .select("id,lead_id,categoria,texto,respondida,observacao,enviada_em,lead:leads(nome,telefone,list_id)", { count: "exact" })
+      .select("id,lead_id,categoria,texto,status_contato,observacao,enviada_em,lead:leads(nome,telefone,list_id)", { count: "exact" })
       .eq("atendente_id", user.id)
       .order("enviada_em", { ascending: false })
       .range(from, from + PAGE_SIZE - 1);
@@ -197,7 +199,7 @@ export default function CallHistory() {
 
     let q = supabase
       .from("mensagens")
-      .select("respondida,lead_id")
+      .select("status_contato,lead_id")
       .eq("atendente_id", user.id);
 
     q = applyServerFilters(q);
@@ -212,7 +214,7 @@ export default function CallHistory() {
       list = list.filter(m => ids.has(m.lead_id));
     }
 
-    const respondidas = list.filter(m => m.respondida).length;
+    const respondidas = list.filter(m => m.status_contato === "respondida").length;
     setStats({
       total: list.length,
       respondidas,
@@ -235,10 +237,11 @@ export default function CallHistory() {
     setPage(0);
   }
 
-  async function toggleRespondida(msg: Mensagem) {
-    const { error } = await supabase.from("mensagens").update({ respondida: !msg.respondida }).eq("id", msg.id);
+  async function setStatusContato(msg: Mensagem, status_contato: MensagemStatusContato) {
+    if (msg.status_contato === status_contato) return;
+    const { error } = await supabase.from("mensagens").update({ status_contato }).eq("id", msg.id);
     if (error) { toast.error(error.message); return; }
-    setMensagens(prev => prev.map(m => m.id === msg.id ? { ...m, respondida: !m.respondida } : m));
+    setMensagens(prev => prev.map(m => m.id === msg.id ? { ...m, status_contato } : m));
     loadStats();
   }
 
@@ -390,14 +393,20 @@ export default function CallHistory() {
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground max-w-xs truncate">{msg.texto}</TableCell>
                   <TableCell onClick={e => e.stopPropagation()}>
-                    <button
-                      onClick={() => toggleRespondida(msg)}
-                      className={`text-[11px] font-semibold px-2 py-1 rounded-full transition-colors ${
-                        msg.respondida ? "bg-emerald-100 text-emerald-700" : "bg-muted text-muted-foreground hover:bg-muted/70"
-                      }`}
-                    >
-                      {msg.respondida ? "Respondida ✓" : "Marcar respondida"}
-                    </button>
+                    <div className="flex gap-0.5">
+                      {MENSAGEM_STATUS_CONTATO_ORDER.map(s => (
+                        <button
+                          key={s}
+                          onClick={() => setStatusContato(msg, s)}
+                          title={MENSAGEM_STATUS_CONTATO_LABELS[s]}
+                          className={`h-6 w-6 flex items-center justify-center rounded-full text-[11px] transition-colors ${
+                            msg.status_contato === s ? MENSAGEM_STATUS_CONTATO_COLOR[s] + " ring-1 ring-inset ring-current" : "text-muted-foreground/40 hover:bg-muted"
+                          }`}
+                        >
+                          {MENSAGEM_STATUS_CONTATO_EMOJI[s]}
+                        </button>
+                      ))}
+                    </div>
                   </TableCell>
                   <TableCell className="text-right" onClick={e => e.stopPropagation()}>
                     <div className="flex justify-end gap-1">

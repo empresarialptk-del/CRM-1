@@ -12,10 +12,25 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { STATUS_COLOR, STATUS_LABELS, FUNNEL_STAGE, FUNNEL_STAGES, LOST_STATUSES, formatPhone } from "@/lib/crm";
+import {
+  LEAD_STATUS_LABELS, LEAD_STATUS_COLOR, LEAD_STATUSES, LEAD_STATUS_LOST,
+  LEAD_FUNNEL_COLUMNS, LEAD_FUNNEL_LOST_COLUMN, getLeadFunnelColumn,
+  MENSAGEM_CATEGORIA_LABELS, MENSAGEM_CATEGORIA_EMOJI,
+  MENSAGEM_STATUS_CONTATO_LABELS, MENSAGEM_STATUS_CONTATO_COLOR, MENSAGEM_STATUS_CONTATO_EMOJI,
+  formatPhone, type MensagemStatusContato, type MensagemCategoria,
+} from "@/lib/crm";
 import { calcLeadScore, scoreLabel } from "@/lib/leadScore";
-import { Search, Plus, Upload, ListPlus, AlertTriangle, Copy, Pencil, Trash2, ChevronDown, ArrowUp, ArrowDown, Layers, X as XIcon, ChevronRight, PhoneCall, RefreshCw, ExternalLink, Download, ChevronLeft, Eye } from "lucide-react";
+import { Search, Plus, Upload, ListPlus, AlertTriangle, Copy, Pencil, Trash2, ChevronDown, ArrowUp, ArrowDown, Layers, X as XIcon, ChevronRight, PhoneCall, MessageCircle, RefreshCw, ExternalLink, Download, ChevronLeft, Eye, UserCircle2, UserPlus } from "lucide-react";
 import { toast } from "sonner";
+
+type Profile = { id: string; full_name: string };
+type LastMensagem = { status_contato: MensagemStatusContato; enviada_em: string };
+
+function initials(name: string): string {
+  const parts = (name || "").trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "?";
+  return (parts[0][0] + (parts[1]?.[0] ?? "")).toUpperCase();
+}
 
 type LeadList = { id: string; nome: string; descricao: string | null; created_by: string };
 
@@ -81,25 +96,50 @@ export default function Leads() {
   const [duplicates, setDuplicates] = useState<{phone: string; count: number; leads: any[]}[]>([]);
   const [showDupAlert, setShowDupAlert]   = useState(true);
   const [expandedLeadId, setExpandedLeadId] = useState<string | null>(null);
-  const [expandedCalls, setExpandedCalls]   = useState<any[]>([]);
-  const [loadingCalls, setLoadingCalls]     = useState(false);
+  const [expandedMensagens, setExpandedMensagens] = useState<any[]>([]);
+  const [loadingMensagens, setLoadingMensagens]   = useState(false);
+  const [profiles, setProfiles] = useState<Profile[]>([]);
+  const [lastMsgByLead, setLastMsgByLead] = useState<Map<string, LastMensagem>>(new Map());
 
-  async function loadLeadCalls(leadId: string) {
-    setLoadingCalls(true);
+  const profileById = useMemo(() => new Map(profiles.map(p => [p.id, p])), [profiles]);
+
+  async function loadLeadMensagens(leadId: string) {
+    setLoadingMensagens(true);
     const { data } = await supabase
-      .from("calls")
-      .select("id,outcome,outcome_label,observacao,duracao_segundos,started_at")
+      .from("mensagens")
+      .select("id,categoria,texto,status_contato,observacao,enviada_em")
       .eq("lead_id", leadId)
-      .order("started_at", { ascending: false })
+      .order("enviada_em", { ascending: false })
       .limit(20);
-    setExpandedCalls((data ?? []) as any[]);
-    setLoadingCalls(false);
+    setExpandedMensagens((data ?? []) as any[]);
+    setLoadingMensagens(false);
   }
 
   async function loadLists() {
     const { data, error } = await supabase.from("lead_lists").select("*").order("created_at", { ascending: false });
     if (error) { toast.error("Erro ao carregar listas: " + error.message); return; }
     setLists((data ?? []) as LeadList[]);
+  }
+
+  async function loadProfiles() {
+    const { data } = await supabase.from("profiles").select("id,full_name").order("full_name", { ascending: true });
+    setProfiles((data ?? []) as Profile[]);
+  }
+
+  async function loadLastMessages() {
+    const { data } = await supabase.from("mensagens").select("lead_id,status_contato,enviada_em").order("enviada_em", { ascending: false });
+    const map = new Map<string, LastMensagem>();
+    for (const m of (data ?? []) as { lead_id: string; status_contato: MensagemStatusContato; enviada_em: string }[]) {
+      if (!map.has(m.lead_id)) map.set(m.lead_id, { status_contato: m.status_contato, enviada_em: m.enviada_em });
+    }
+    setLastMsgByLead(map);
+  }
+
+  async function assignLead(lead: any, userId: string | null) {
+    const { error } = await supabase.from("leads").update({ assigned_to: userId }).eq("id", lead.id);
+    if (error) { toast.error(error.message); return; }
+    setRows(prev => prev.map(r => r.id === lead.id ? { ...r, assigned_to: userId } : r));
+    toast.success(userId ? `Atribuído a ${profileById.get(userId)?.full_name || "atendente"}` : "Atribuição removida");
   }
 
   async function checkDuplicates() {
@@ -137,13 +177,13 @@ export default function Leads() {
       query = query.order("nome", { ascending: true });
     }
 
-    // Filtro por etapa (A→N) ou por status específico
+    // Filtro por etapa do funil ou por status específico
     if (stageFilter !== "all") {
       if (stageFilter === "perdido") {
-        query = query.in("status", LOST_STATUSES);
+        query = query.in("status", LEAD_STATUS_LOST);
       } else {
-        const stage = FUNNEL_STAGES.find(s => s.key === stageFilter);
-        if (stage) query = query.in("status", stage.statuses);
+        const col = LEAD_FUNNEL_COLUMNS.find(c => c.key === stageFilter);
+        if (col) query = query.in("status", col.statuses);
       }
     } else if (status !== "all") {
       query = query.eq("status", status as any);
@@ -171,13 +211,13 @@ export default function Leads() {
     loadRows(page);
   }, [page]);
 
-  useEffect(() => { loadLists(); checkDuplicates(); }, []);
+  useEffect(() => { loadLists(); checkDuplicates(); loadProfiles(); loadLastMessages(); }, []);
 
   const totalPages = Math.ceil(totalCount / PAGE_SIZE);
 
   const counts = useMemo(() => {
     const errados = rows.filter(r => r.status === "numero_errado").length;
-    const convertidos = rows.filter(r => r.status === "convertido").length;
+    const convertidos = rows.filter(r => ["pago", "entregue", "pos_venda"].includes(r.status)).length;
     return { errados, convertidos };
   }, [rows]);
 
@@ -188,7 +228,7 @@ export default function Leads() {
     const header = ["Nome", "Telefone", "Status", "Lista", "Observação", "Origem", "Criado em"];
     const csvRows = rows.map(r => {
       const listName = lists.find(l => l.id === r.list_id)?.nome ?? "";
-      const statusLabel = STATUS_LABELS[r.status] ?? r.status;
+      const statusLabel = LEAD_STATUS_LABELS[r.status] ?? r.status;
       const phone = formatPhone(r.telefone);
       const obs = (r.observacoes ?? "").replace(/"/g, '""');
       const createdAt = r.created_at ? new Date(r.created_at).toLocaleDateString("pt-BR") : "";
@@ -209,7 +249,7 @@ export default function Leads() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     const listLabel = activeList === "all" ? "todos" : activeList === "none" ? "sem-lista" : (lists.find(l => l.id === activeList)?.nome ?? "lista");
-    const statusLabel = status === "all" ? "todos-status" : (STATUS_LABELS[status] ?? status);
+    const statusLabel = status === "all" ? "todos-status" : (LEAD_STATUS_LABELS[status] ?? status);
     const date = new Date().toLocaleDateString("pt-BR").replace(/\//g, "-");
     a.href = url;
     a.download = `leads_${listLabel}_${statusLabel}_${date}.csv`;
@@ -277,7 +317,7 @@ export default function Leads() {
           <SelectTrigger className="w-56"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todos os status</SelectItem>
-            {Object.entries(STATUS_LABELS).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
+            {LEAD_STATUSES.map(k => <SelectItem key={k} value={k}>{LEAD_STATUS_LABELS[k]}</SelectItem>)}
           </SelectContent>
         </Select>
       </Card>
@@ -285,7 +325,7 @@ export default function Leads() {
       {(status !== "all" || activeList !== "all" || debouncedQ) && (
         <div className="mb-3 text-sm text-muted-foreground flex items-center gap-2 flex-wrap">
           <span>Mostrando <strong className="text-foreground">{totalCount}</strong> contatos</span>
-          {status !== "all" && <Badge variant="secondary">{STATUS_LABELS[status]}</Badge>}
+          {status !== "all" && <Badge variant="secondary">{LEAD_STATUS_LABELS[status]}</Badge>}
           {activeList !== "all" && <Badge variant="secondary">{activeList === "none" ? "Sem lista" : lists.find(l => l.id === activeList)?.nome}</Badge>}
           {debouncedQ && <Badge variant="secondary">"{debouncedQ}"</Badge>}
           {stageFilter !== "all" && (
@@ -325,19 +365,18 @@ export default function Leads() {
             }`}>
             Todas
           </button>
-          {FUNNEL_STAGES.map(stage => (
-            <button key={stage.key}
-              onClick={() => { setStageFilter(stage.key); setStatus("all"); setPage(0); }}
-              title={stage.label}
+          {LEAD_FUNNEL_COLUMNS.map(col => (
+            <button key={col.key}
+              onClick={() => { setStageFilter(col.key); setStatus("all"); setPage(0); }}
+              title={col.label}
               className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border transition-all ${
-                stageFilter === stage.key
+                stageFilter === col.key
                   ? "text-white border-transparent"
                   : "border-muted text-muted-foreground hover:border-foreground/30"
               }`}
-              style={stageFilter === stage.key ? { backgroundColor: stage.color, borderColor: stage.color } : {}}>
-              <span>{stage.emoji}</span>
-              <span>{stage.key}</span>
-              <span className="font-normal hidden sm:inline">· {stage.label}</span>
+              style={stageFilter === col.key ? { backgroundColor: col.color, borderColor: col.color } : {}}>
+              <span>{col.emoji}</span>
+              <span className="hidden sm:inline">{col.label}</span>
             </button>
           ))}
           <button
@@ -351,7 +390,24 @@ export default function Leads() {
 
         <Table>
           <TableHeader><TableRow>
-            {(Object.keys(COL_LABELS) as ColKey[]).map(col => (
+            {(["nome", "telefone", "status", "list_id"] as ColKey[]).map(col => (
+              <TableHead key={col}>
+                <ColumnMenu
+                  col={col}
+                  sort={sort}
+                  groupBy={groupBy}
+                  onSort={(dir) => setSort({ col, dir })}
+                  onClearSort={() => setSort(null)}
+                  onGroup={() => setGroupBy(col)}
+                  onUngroup={() => setGroupBy(null)}
+                  statusFilter={status}
+                  onStatusFilter={setStatus}
+                />
+              </TableHead>
+            ))}
+            <TableHead>Responsável</TableHead>
+            <TableHead>Último contato</TableHead>
+            {(["observacoes"] as ColKey[]).map(col => (
               <TableHead key={col}>
                 <ColumnMenu
                   col={col}
@@ -370,12 +426,6 @@ export default function Leads() {
           </TableRow></TableHeader>
           <TableBody>
             {(() => {
-              const OUTCOME_EMOJI: Record<string,string> = {
-                nao_atendeu:"📵", retornar:"🔄", respondeu:"💬", mensagem_zap:"💚",
-                visita_pendente:"🎯", visita_agendada:"📅", visita_confirmada:"✅", visita_cancelada:"🚫",
-                proposta:"📋", convertido:"🏆", sem_interesse:"❌", perdido:"💀",
-              };
-
               const renderRow = (r: any) => {
                 const listName = lists.find(l => l.id === r.list_id)?.nome ?? "—";
                 const invalid = !isValidBRPhone(normalizePhone(r.telefone));
@@ -392,28 +442,63 @@ export default function Leads() {
                         </span>
                       </TableCell>
                       <TableCell><div className="flex items-center gap-1.5">
-                        <Badge variant="secondary" className={STATUS_COLOR[r.status]}>{STATUS_LABELS[r.status] ?? r.status}</Badge>
-                        {FUNNEL_STAGE[r.status] && (() => {
-                          const stage = FUNNEL_STAGES.find(s => s.key === FUNNEL_STAGE[r.status]);
-                          return stage ? (
-                            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full border"
-                              style={{ backgroundColor: stage.light, color: stage.color, borderColor: stage.color + "30" }}>
-                              {stage.key}
-                            </span>
-                          ) : null;
-                        })()}
+                        <Badge variant="secondary" className={LEAD_STATUS_COLOR[r.status]}>{LEAD_STATUS_LABELS[r.status] ?? r.status}</Badge>
                       </div></TableCell>
                       <TableCell className="text-muted-foreground text-sm">{listName}</TableCell>
+                      <TableCell onClick={e => e.stopPropagation()}>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <button className="flex items-center gap-1.5 px-1.5 py-1 -mx-1.5 rounded-lg hover:bg-muted transition-colors">
+                              {r.assigned_to && profileById.get(r.assigned_to) ? (
+                                <span className="h-5 w-5 rounded-full bg-primary/15 text-primary text-[9px] font-bold flex items-center justify-center shrink-0">
+                                  {initials(profileById.get(r.assigned_to)!.full_name)}
+                                </span>
+                              ) : (
+                                <UserCircle2 className="h-5 w-5 text-muted-foreground/40 shrink-0"/>
+                              )}
+                              <span className="text-xs text-muted-foreground truncate max-w-[100px]">
+                                {r.assigned_to ? (profileById.get(r.assigned_to)?.full_name || "—") : "Sem responsável"}
+                              </span>
+                            </button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="start" className="max-h-64 overflow-y-auto">
+                            <DropdownMenuLabel>Atribuir a</DropdownMenuLabel>
+                            <DropdownMenuSeparator/>
+                            {profiles.map(p => (
+                              <DropdownMenuItem key={p.id} onClick={() => assignLead(r, p.id)}>
+                                {r.assigned_to === p.id ? "✓ " : ""}{p.full_name || "Sem nome"}
+                              </DropdownMenuItem>
+                            ))}
+                            {r.assigned_to && (
+                              <>
+                                <DropdownMenuSeparator/>
+                                <DropdownMenuItem onClick={() => assignLead(r, null)}>Remover responsável</DropdownMenuItem>
+                              </>
+                            )}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </TableCell>
+                      <TableCell>
+                        {(() => {
+                          const last = lastMsgByLead.get(r.id);
+                          if (!last) return <span className="text-xs text-muted-foreground/50">—</span>;
+                          return (
+                            <Badge variant="secondary" className={`text-[10px] ${MENSAGEM_STATUS_CONTATO_COLOR[last.status_contato]}`}>
+                              {MENSAGEM_STATUS_CONTATO_EMOJI[last.status_contato]} {MENSAGEM_STATUS_CONTATO_LABELS[last.status_contato]}
+                            </Badge>
+                          );
+                        })()}
+                      </TableCell>
                       <TableCell className="text-sm text-muted-foreground max-w-md truncate">{r.observacoes ?? "—"}</TableCell>
                       <TableCell className="text-right" onClick={e => e.stopPropagation()}>
                         <div className="flex justify-end gap-1">
                           <Button size="icon" variant="ghost" title="Histórico completo"
-                            onClick={e => { e.stopPropagation(); if (isExpanded) { setExpandedLeadId(null); } else { setExpandedLeadId(r.id); loadLeadCalls(r.id); } }}
+                            onClick={e => { e.stopPropagation(); if (isExpanded) { setExpandedLeadId(null); } else { setExpandedLeadId(r.id); loadLeadMensagens(r.id); } }}
                             className={isExpanded ? "bg-primary/10 text-primary" : ""}>
                             <ChevronDown className={`h-4 w-4 transition-transform ${isExpanded ? "rotate-180" : ""}`} />
                           </Button>
                           <Button size="icon" variant="ghost" title="Ver lead" onClick={() => navigate(`/lead/${r.id}`)}><Eye className="h-4 w-4" /></Button>
-                          <Button size="icon" variant="ghost" title="Discar" onClick={() => navigate(`/dialer?lead=${r.id}`)}><PhoneCall className="h-4 w-4" /></Button>
+                          <Button size="icon" variant="ghost" title="Enviar mensagem" onClick={() => navigate(`/dialer?lead=${r.id}`)}><MessageCircle className="h-4 w-4" /></Button>
                           <Button size="icon" variant="ghost" onClick={() => setEditingLead(r)}><Pencil className="h-4 w-4" /></Button>
                           <DeleteLeadButton lead={r} onDeleted={() => loadRows(page)} />
                         </div>
@@ -423,7 +508,7 @@ export default function Leads() {
                     {/* Dropdown expansível */}
                     {isExpanded && (
                       <TableRow>
-                        <TableCell colSpan={6} className="p-0 bg-muted/20">
+                        <TableCell colSpan={8} className="p-0 bg-muted/20">
                           <div className="px-6 py-4 space-y-4">
                             {/* Info rápida */}
                             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
@@ -455,36 +540,31 @@ export default function Leads() {
                               </div>
                             )}
 
-                            {/* Histórico de ligações */}
+                            {/* Histórico de mensagens */}
                             <div>
                               <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-2">
-                                📞 Histórico de contatos {loadingCalls ? "(carregando...)" : `(${expandedCalls.length} ligações)`}
+                                💬 Histórico de mensagens {loadingMensagens ? "(carregando...)" : `(${expandedMensagens.length})`}
                               </p>
-                              {loadingCalls ? (
+                              {loadingMensagens ? (
                                 <div className="h-8 bg-muted animate-pulse rounded"/>
-                              ) : expandedCalls.length === 0 ? (
-                                <p className="text-xs text-muted-foreground italic">Nenhuma ligação registrada</p>
+                              ) : expandedMensagens.length === 0 ? (
+                                <p className="text-xs text-muted-foreground italic">Nenhuma mensagem registrada</p>
                               ) : (
                                 <div className="space-y-1.5 max-h-52 overflow-y-auto">
-                                  {expandedCalls.map((c, i) => {
-                                    const emoji = OUTCOME_EMOJI[c.outcome] ?? "📞";
-                                    const date = new Date(c.started_at);
+                                  {expandedMensagens.map((m) => {
+                                    const emoji = MENSAGEM_CATEGORIA_EMOJI[m.categoria as MensagemCategoria] ?? "💬";
+                                    const date = new Date(m.enviada_em);
                                     return (
-                                      <div key={c.id} className="flex items-start gap-2.5 p-2 rounded-lg bg-background border text-xs">
+                                      <div key={m.id} className="flex items-start gap-2.5 p-2 rounded-lg bg-background border text-xs">
                                         <span className="text-base leading-none shrink-0">{emoji}</span>
                                         <div className="flex-1 min-w-0">
                                           <div className="flex items-center gap-2 flex-wrap">
-                                            <span className="font-semibold">{STATUS_LABELS[c.outcome] ?? c.outcome}</span>
-                                            <span className="text-[10px] bg-muted px-1.5 py-0.5 rounded-full text-muted-foreground">
-                                              {expandedCalls.length - i}ª tentativa
-                                            </span>
-                                            {c.duracao_segundos > 0 && (
-                                              <span className="text-[10px] text-muted-foreground">⏱ {Math.floor(c.duracao_segundos/60)}:{String(c.duracao_segundos%60).padStart(2,"0")}</span>
-                                            )}
+                                            <span className="font-semibold">{MENSAGEM_CATEGORIA_LABELS[m.categoria as MensagemCategoria] ?? m.categoria}</span>
+                                            <Badge variant="secondary" className={`text-[10px] ${MENSAGEM_STATUS_CONTATO_COLOR[m.status_contato as MensagemStatusContato]}`}>
+                                              {MENSAGEM_STATUS_CONTATO_EMOJI[m.status_contato as MensagemStatusContato]} {MENSAGEM_STATUS_CONTATO_LABELS[m.status_contato as MensagemStatusContato]}
+                                            </Badge>
                                           </div>
-                                          {c.observacao && (
-                                            <p className="text-muted-foreground mt-0.5 leading-relaxed">💬 {c.observacao}</p>
-                                          )}
+                                          <p className="text-muted-foreground mt-0.5 leading-relaxed line-clamp-2">{m.texto}</p>
                                         </div>
                                         <span className="text-[10px] text-muted-foreground shrink-0 tabular-nums">
                                           {date.toLocaleDateString("pt-BR", { day:"2-digit", month:"2-digit" })} {date.toLocaleTimeString("pt-BR", { hour:"2-digit", minute:"2-digit" })}
@@ -504,7 +584,7 @@ export default function Leads() {
                               </button>
                               <button onClick={() => navigate(`/dialer?lead=${r.id}`)}
                                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-medium hover:bg-emerald-100 transition-colors">
-                                📞 Discar agora
+                                💬 Enviar mensagem
                               </button>
                               <a href={`https://wa.me/55${r.telefone.replace(/\D/g,"")}`} target="_blank" rel="noopener noreferrer"
                                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-green-50 border border-green-200 text-green-700 text-xs font-medium hover:bg-green-100 transition-colors">
@@ -523,7 +603,7 @@ export default function Leads() {
 
               const groupKey = (r: any): string => {
                 if (groupBy === "list_id") return lists.find(l => l.id === r.list_id)?.nome ?? "Sem lista";
-                if (groupBy === "status") return STATUS_LABELS[r.status] ?? r.status;
+                if (groupBy === "status") return LEAD_STATUS_LABELS[r.status] ?? r.status;
                 if (groupBy === "observacoes") return r.observacoes ? "Com observação" : "Sem observação";
                 if (groupBy === "telefone") return isValidBRPhone(normalizePhone(r.telefone)) ? "Válidos" : "Inválidos";
                 if (groupBy === "nome") return (r.nome?.[0] ?? "—").toUpperCase();
@@ -540,7 +620,7 @@ export default function Leads() {
                 const isCollapsed = collapsed[k];
                 const header = (
                   <TableRow key={`g-${k}`} className="bg-muted/40 hover:bg-muted/50 cursor-pointer" onClick={() => setCollapsed(s => ({ ...s, [k]: !s[k] }))}>
-                    <TableCell colSpan={6} className="font-semibold text-sm">
+                    <TableCell colSpan={8} className="font-semibold text-sm">
                       <span className="inline-flex items-center gap-2">
                         {isCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                         {k}
@@ -644,7 +724,7 @@ function EditLeadDialog({ lead, lists, onSaved, open, onOpenChange }: { lead: an
               <Select value={status} onValueChange={setStatus}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {Object.entries(STATUS_LABELS).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
+                  {LEAD_STATUSES.map(k => <SelectItem key={k} value={k}>{LEAD_STATUS_LABELS[k]}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
@@ -943,8 +1023,8 @@ function ColumnMenu({ col, sort, groupBy, onSort, onClearSort, onGroup, onUngrou
             <DropdownMenuSeparator />
             <DropdownMenuLabel>Filtrar por status</DropdownMenuLabel>
             <DropdownMenuItem onClick={() => onStatusFilter("all")}>{statusFilter === "all" && "✓ "}Todos</DropdownMenuItem>
-            {Object.entries(STATUS_LABELS).map(([k, v]) => (
-              <DropdownMenuItem key={k} onClick={() => onStatusFilter(k)}>{statusFilter === k && "✓ "}{v}</DropdownMenuItem>
+            {LEAD_STATUSES.map(k => (
+              <DropdownMenuItem key={k} onClick={() => onStatusFilter(k)}>{statusFilter === k && "✓ "}{LEAD_STATUS_LABELS[k]}</DropdownMenuItem>
             ))}
           </>
         )}

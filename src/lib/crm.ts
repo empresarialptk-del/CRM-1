@@ -605,6 +605,37 @@ export const LEAD_STATUS_COLOR: Record<LeadStatus, string> = {
 
 export const LEAD_STATUS_LOST: LeadStatus[] = ["sem_interesse", "numero_errado", "perdido"];
 
+// ── Colunas do Kanban / funil — agrupamento do enum real para exibição ───────
+export interface LeadFunnelColumn {
+  key: string;
+  label: string;
+  emoji: string;
+  color: string;
+  light: string;
+  statuses: LeadStatus[];
+}
+
+export const LEAD_FUNNEL_COLUMNS: LeadFunnelColumn[] = [
+  { key: "novo",       label: "Novo",                emoji: "📥", color: "#64748b", light: "#f1f5f9", statuses: ["novo"] },
+  { key: "nao_atendeu",label: "Não atendeu",         emoji: "📵", color: "#f59e0b", light: "#fffbeb", statuses: ["nao_atendeu"] },
+  { key: "atendeu",    label: "Atendeu",             emoji: "📞", color: "#0ea5e9", light: "#f0f9ff", statuses: ["retornar", "respondeu", "mensagem_zap"] },
+  { key: "interesse",  label: "Interesse",           emoji: "💬", color: "#06b6d4", light: "#ecfeff", statuses: ["interesse"] },
+  { key: "negociacao", label: "Negociação",          emoji: "🤝", color: "#8b5cf6", light: "#f5f3ff", statuses: ["negociacao"] },
+  { key: "pagamento",  label: "Aguard. pagamento",   emoji: "⏳", color: "#f97316", light: "#fff7ed", statuses: ["aguardando_pagamento"] },
+  { key: "pago",       label: "Pago",                emoji: "💳", color: "#10b981", light: "#ecfdf5", statuses: ["pago"] },
+  { key: "entregue",   label: "Entregue",            emoji: "📦", color: "#2563eb", light: "#eff6ff", statuses: ["entregue"] },
+  { key: "pos_venda",  label: "Pós-venda",           emoji: "⭐", color: "#0f766e", light: "#f0fdfa", statuses: ["pos_venda"] },
+];
+
+export const LEAD_FUNNEL_LOST_COLUMN: LeadFunnelColumn = {
+  key: "perdido", label: "Perdidos", emoji: "❌", color: "#ef4444", light: "#fef2f2", statuses: LEAD_STATUS_LOST,
+};
+
+export function getLeadFunnelColumn(status: string): LeadFunnelColumn | undefined {
+  if (LEAD_STATUS_LOST.includes(status as LeadStatus)) return LEAD_FUNNEL_LOST_COLUMN;
+  return LEAD_FUNNEL_COLUMNS.find(c => c.statuses.includes(status as LeadStatus));
+}
+
 // ── Categorias de mensagem (enum public.mensagem_categoria) ──────────────────
 export type MensagemCategoria = "recompra" | "novidade" | "desconto" | "promocao";
 
@@ -629,4 +660,32 @@ export const MENSAGEM_CATEGORIA_EMOJI: Record<MensagemCategoria, string> = {
   novidade: "✨",
   desconto: "🏷️",
   promocao: "🔥",
+};
+
+// ── Status de contato de cada mensagem (enum public.mensagem_status_contato) ─
+// "vista" e "sem_retorno" são sempre marcados manualmente pelo atendente —
+// não há integração com a API oficial do WhatsApp para detectar isso.
+export type MensagemStatusContato = "enviada" | "vista" | "respondida" | "sem_retorno";
+
+export const MENSAGEM_STATUS_CONTATO_ORDER: MensagemStatusContato[] = ["enviada", "vista", "respondida", "sem_retorno"];
+
+export const MENSAGEM_STATUS_CONTATO_LABELS: Record<MensagemStatusContato, string> = {
+  enviada: "Enviada",
+  vista: "Vista",
+  respondida: "Respondida",
+  sem_retorno: "Sem retorno",
+};
+
+export const MENSAGEM_STATUS_CONTATO_COLOR: Record<MensagemStatusContato, string> = {
+  enviada: "bg-slate-100 text-slate-600",
+  vista: "bg-blue-100 text-blue-700",
+  respondida: "bg-emerald-100 text-emerald-700",
+  sem_retorno: "bg-rose-100 text-rose-700",
+};
+
+export const MENSAGEM_STATUS_CONTATO_EMOJI: Record<MensagemStatusContato, string> = {
+  enviada: "📤",
+  vista: "👁️",
+  respondida: "✅",
+  sem_retorno: "🚫",
 };

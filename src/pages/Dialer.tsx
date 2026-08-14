@@ -11,7 +11,8 @@ import { Input } from "@/components/ui/input";
 import {
   LEAD_STATUS_LABELS, LEAD_STATUS_COLOR, LEAD_STATUSES, LEAD_STATUS_LOST,
   MENSAGEM_CATEGORIAS, MENSAGEM_CATEGORIA_LABELS, MENSAGEM_CATEGORIA_COLOR, MENSAGEM_CATEGORIA_EMOJI,
-  formatPhone, type MensagemCategoria,
+  MENSAGEM_STATUS_CONTATO_ORDER, MENSAGEM_STATUS_CONTATO_LABELS, MENSAGEM_STATUS_CONTATO_COLOR, MENSAGEM_STATUS_CONTATO_EMOJI,
+  formatPhone, type MensagemCategoria, type MensagemStatusContato,
 } from "@/lib/crm";
 import {
   MessageCircle, MessageSquare, SkipForward, Send, Check, RefreshCw,
@@ -36,7 +37,7 @@ type Mensagem = {
   categoria: MensagemCategoria;
   texto: string;
   canal: string;
-  respondida: boolean;
+  status_contato: MensagemStatusContato;
   observacao: string | null;
   enviada_em: string;
 };
@@ -153,7 +154,7 @@ export default function Dialer() {
     if (!lead) { setLeadMensagens([]); return; }
     supabase
       .from("mensagens")
-      .select("id,categoria,texto,canal,respondida,observacao,enviada_em")
+      .select("id,categoria,texto,canal,status_contato,observacao,enviada_em")
       .eq("lead_id", lead.id)
       .order("enviada_em", { ascending: false })
       .limit(20)
@@ -311,7 +312,7 @@ export default function Dialer() {
       categoria,
       texto: messageDraft.trim(),
       canal: "whatsapp",
-      respondida: false,
+      status_contato: "enviada",
       observacao: note.trim() || null,
     });
 
@@ -326,15 +327,16 @@ export default function Dialer() {
     loadContactedLeads();
     setLeadMensagens(prev => [{
       id: `tmp-${Date.now()}`, categoria, texto: messageDraft.trim(), canal: "whatsapp",
-      respondida: false, observacao: note.trim() || null, enviada_em: new Date().toISOString(),
+      status_contato: "enviada", observacao: note.trim() || null, enviada_em: new Date().toISOString(),
     }, ...prev]);
     advanceQueue(lead.id);
   }
 
-  async function toggleRespondida(msg: Mensagem) {
-    const { error } = await supabase.from("mensagens").update({ respondida: !msg.respondida }).eq("id", msg.id);
+  async function setStatusContato(msg: Mensagem, status_contato: MensagemStatusContato) {
+    if (msg.status_contato === status_contato) return;
+    const { error } = await supabase.from("mensagens").update({ status_contato }).eq("id", msg.id);
     if (error) { toast.error(error.message); return; }
-    setLeadMensagens(prev => prev.map(m => m.id === msg.id ? { ...m, respondida: !m.respondida } : m));
+    setLeadMensagens(prev => prev.map(m => m.id === msg.id ? { ...m, status_contato } : m));
   }
 
   function startEditingTemplate() {
@@ -544,14 +546,20 @@ export default function Dialer() {
                           </div>
                           <p className="text-xs text-muted-foreground mt-0.5 truncate">{m.texto}</p>
                         </div>
-                        <button
-                          onClick={() => toggleRespondida(m)}
-                          className={`shrink-0 text-[10px] font-semibold px-2 py-1 rounded-full transition-colors ${
-                            m.respondida ? "bg-emerald-100 text-emerald-700" : "bg-muted text-muted-foreground hover:bg-muted/70"
-                          }`}
-                        >
-                          {m.respondida ? "Respondida ✓" : "Marcar respondida"}
-                        </button>
+                        <div className="shrink-0 flex gap-0.5">
+                          {MENSAGEM_STATUS_CONTATO_ORDER.map(s => (
+                            <button
+                              key={s}
+                              onClick={() => setStatusContato(m, s)}
+                              title={MENSAGEM_STATUS_CONTATO_LABELS[s]}
+                              className={`h-6 w-6 flex items-center justify-center rounded-full text-[11px] transition-colors ${
+                                m.status_contato === s ? MENSAGEM_STATUS_CONTATO_COLOR[s] + " ring-1 ring-inset ring-current" : "text-muted-foreground/40 hover:bg-muted"
+                              }`}
+                            >
+                              {MENSAGEM_STATUS_CONTATO_EMOJI[s]}
+                            </button>
+                          ))}
+                        </div>
                       </div>
                     ))}
                   </div>

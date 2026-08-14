@@ -11,6 +11,12 @@ export function calcLeadScore(d: LeadScoreData): number {
   const followup  = d.hasFollowup ? 8 : 0;
 
   const statusBonus: Record<string, number> = {
+    // enum real (lead_status)
+    pos_venda: 100, entregue: 90, pago: 80,
+    aguardando_pagamento: 70, negociacao: 55,
+    interesse: 30, respondeu: 15, mensagem_zap: 15, retornar: 10,
+    novo: 2, nao_atendeu: 1,
+    // legado (mantido por compat com telas que ainda usam o funil antigo)
     registro: 100, repasse: 95, boleto_pago: 90,
     contrato_assinado: 85, contrato_gerado: 80,
     credito_aprovado: 75, cpf_analisado: 70,
@@ -18,10 +24,7 @@ export function calcLeadScore(d: LeadScoreData): number {
     visitou: 55, proposta: 50, convertido: 50,
     visita_confirmada: 42, visita_agendada: 38,
     visita_remarcada: 30, visita_faltou: 20,
-    visita_pendente: 25, interesse: 18,
-    respondeu: 12, mensagem_zap: 10, retornar: 8,
-    novo: 2, nao_atendeu: 1,
-    // legado
+    visita_pendente: 25,
     agendado: 38, visita: 25, proposta_aceita: 65,
     analise_credito: 70, aprovacao_credito: 75,
     chaves_entregues: 85,

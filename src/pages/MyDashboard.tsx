@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import {
   LEAD_STATUSES, LEAD_STATUS_LABELS, LEAD_STATUS_COLOR,
   MENSAGEM_CATEGORIAS, MENSAGEM_CATEGORIA_LABELS, MENSAGEM_CATEGORIA_COLOR, MENSAGEM_CATEGORIA_EMOJI,
-  type MensagemCategoria,
+  type MensagemCategoria, type MensagemStatusContato,
 } from "@/lib/crm";
 import {
   PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer,
@@ -214,7 +214,7 @@ function MetaBar({ label, current, meta, color }: { label: string; current: numb
   );
 }
 
-type MensagemRow = { id: string; categoria: MensagemCategoria; respondida: boolean; enviada_em: string; lead_id: string };
+type MensagemRow = { id: string; categoria: MensagemCategoria; status_contato: MensagemStatusContato; enviada_em: string; lead_id: string };
 type LeadRow = { id: string; status: string; list_id: string | null; created_at: string; observacoes: string | null };
 
 // ── Dashboard principal ───────────────────────────────────────────────────────
@@ -243,7 +243,7 @@ export default function MyDashboard() {
 
     Promise.all([
       (async () => {
-        let q = supabase.from("mensagens").select("id,categoria,respondida,enviada_em,lead_id").eq("atendente_id", user.id).order("enviada_em", { ascending: true });
+        let q = supabase.from("mensagens").select("id,categoria,status_contato,enviada_em,lead_id").eq("atendente_id", user.id).order("enviada_em", { ascending: true });
         if (start) q = q.gte("enviada_em", start.toISOString());
         if (end)   q = q.lte("enviada_em", end.toISOString());
         const { data } = await q;
@@ -251,7 +251,7 @@ export default function MyDashboard() {
       })(),
       (async () => {
         const { data } = await supabase
-          .from("mensagens").select("id,categoria,respondida,enviada_em,lead_id")
+          .from("mensagens").select("id,categoria,status_contato,enviada_em,lead_id")
           .eq("atendente_id", user.id)
           .gte("enviada_em", lastWeekStart.toISOString())
           .lte("enviada_em", lastWeekEnd.toISOString());
@@ -289,7 +289,7 @@ export default function MyDashboard() {
 
   const metrics = useMemo(() => {
     const total       = filteredMensagens.length;
-    const respondidas = filteredMensagens.filter(m => m.respondida).length;
+    const respondidas = filteredMensagens.filter(m => m.status_contato === "respondida").length;
     const taxaResposta= total ? Math.round((respondidas / total) * 100) : 0;
     const porCategoria: Record<string, number> = {};
     filteredMensagens.forEach(m => { porCategoria[m.categoria] = (porCategoria[m.categoria] ?? 0) + 1; });
@@ -591,11 +591,11 @@ export default function MyDashboard() {
         const thisWeekMensagens = mensagens.filter(c => new Date(c.enviada_em) >= thisWeekStart);
         const lastWeekMetrics = {
           total: lastWeekMensagens.length,
-          taxaResposta: lastWeekMensagens.length ? Math.round((lastWeekMensagens.filter(m => m.respondida).length / lastWeekMensagens.length) * 100) : 0,
+          taxaResposta: lastWeekMensagens.length ? Math.round((lastWeekMensagens.filter(m => m.status_contato === "respondida").length / lastWeekMensagens.length) * 100) : 0,
         };
         const thisWeekMetrics = {
           total: thisWeekMensagens.length,
-          taxaResposta: thisWeekMensagens.length ? Math.round((thisWeekMensagens.filter(m => m.respondida).length / thisWeekMensagens.length) * 100) : 0,
+          taxaResposta: thisWeekMensagens.length ? Math.round((thisWeekMensagens.filter(m => m.status_contato === "respondida").length / thisWeekMensagens.length) * 100) : 0,
         };
         if (thisWeekMetrics.total === 0 && lastWeekMetrics.total === 0) return null;
         function Diff({ curr, prev, suffix = "" }: { curr: number; prev: number; suffix?: string }) {
@@ -715,7 +715,7 @@ export default function MyDashboard() {
                 <tr><td colSpan={4} className="text-center py-8 text-muted-foreground">Sem mensagens no período</td></tr>
               ) : MENSAGEM_CATEGORIAS.map(c => {
                 const rows = filteredMensagens.filter(m => m.categoria === c);
-                const respondidas = rows.filter(m => m.respondida).length;
+                const respondidas = rows.filter(m => m.status_contato === "respondida").length;
                 const taxa = rows.length ? Math.round((respondidas / rows.length) * 100) : 0;
                 if (rows.length === 0) return null;
                 return (

@@ -7,6 +7,8 @@ export type Json =
   | Json[]
 
 export type Database = {
+  // Allows to automatically instantiate createClient with right options
+  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
     PostgrestVersion: "14.15"
   }
@@ -46,6 +48,44 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "compras_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lead_audit: {
+        Row: {
+          alterado_em: string
+          alterado_por: string | null
+          campo: string
+          id: string
+          lead_id: string
+          valor_anterior: string | null
+          valor_novo: string | null
+        }
+        Insert: {
+          alterado_em?: string
+          alterado_por?: string | null
+          campo: string
+          id?: string
+          lead_id: string
+          valor_anterior?: string | null
+          valor_novo?: string | null
+        }
+        Update: {
+          alterado_em?: string
+          alterado_por?: string | null
+          campo?: string
+          id?: string
+          lead_id?: string
+          valor_anterior?: string | null
+          valor_novo?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lead_audit_lead_id_fkey"
             columns: ["lead_id"]
             isOneToOne: false
             referencedRelation: "leads"
@@ -142,7 +182,7 @@ export type Database = {
           id: string
           lead_id: string
           observacao: string | null
-          respondida: boolean
+          status_contato: Database["public"]["Enums"]["mensagem_status_contato"]
           texto: string
         }
         Insert: {
@@ -153,7 +193,7 @@ export type Database = {
           id?: string
           lead_id: string
           observacao?: string | null
-          respondida?: boolean
+          status_contato?: Database["public"]["Enums"]["mensagem_status_contato"]
           texto: string
         }
         Update: {
@@ -164,7 +204,7 @@ export type Database = {
           id?: string
           lead_id?: string
           observacao?: string | null
-          respondida?: boolean
+          status_contato?: Database["public"]["Enums"]["mensagem_status_contato"]
           texto?: string
         }
         Relationships: [
@@ -247,6 +287,11 @@ export type Database = {
         | "numero_errado"
         | "perdido"
       mensagem_categoria: "recompra" | "novidade" | "desconto" | "promocao"
+      mensagem_status_contato:
+        | "enviada"
+        | "vista"
+        | "respondida"
+        | "sem_retorno"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -392,6 +437,12 @@ export const Constants = {
         "perdido",
       ],
       mensagem_categoria: ["recompra", "novidade", "desconto", "promocao"],
+      mensagem_status_contato: [
+        "enviada",
+        "vista",
+        "respondida",
+        "sem_retorno",
+      ],
     },
   },
 } as const
