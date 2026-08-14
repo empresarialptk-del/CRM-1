@@ -1123,7 +1123,7 @@ function SheetsSyncButton() {
 function ImportFromSheetsButton({ onDone }: { onDone: () => void | Promise<void> }) {
   const [loading, setLoading] = useState(false);
   async function run() {
-    if (!confirm("Importar leads das abas 'Leads dia 1/2/3' da planilha matriz? Leads existentes (mesmo telefone na mesma lista) serão atualizados.")) return;
+    if (!confirm("Importar leads da planilha do Google Sheets? Leads existentes (mesmo telefone na mesma lista) serão atualizados.")) return;
     setLoading(true);
     const t = toast.loading("Importando da planilha...");
     const { data, error } = await supabase.functions.invoke("sheets-import", { body: {} });

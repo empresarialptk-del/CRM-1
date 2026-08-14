@@ -1,22 +1,29 @@
 import { corsHeaders } from "https://esm.sh/@supabase/supabase-js@2.95.0/cors";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.95.0";
 
-const SPREADSHEET_ID = "1Gnh83p4Frw3Tb2e9WVvF8ilezbrfLEwdqaJHrTL2zw8";
+// ── Configuração via variáveis de ambiente (nunca hardcoded) ─────────────────
+// No painel do Supabase: Settings → Edge Functions → Secrets
+// SPREADSHEET_ID    = ID da planilha (da URL: .../spreadsheets/d/<ID>/edit)
+// GOOGLE_SHEETS_API_KEY = chave de API do Google Cloud com a Sheets API ativada
+// SHEET_NAMES (opcional) = nomes das abas a importar, separados por vírgula.
+//   Padrão: "Leads"
 const SHEETS_BASE = "https://sheets.googleapis.com/v4/spreadsheets";
-const SOURCE_SHEETS = ["Leads dia 1", "Leads Dia 2", "Leads Dia 3"];
 
 const SHEET_STATUS_MAP: Record<string, string> = {
-  "novo": "novo", "não atendeu": "nao_atendeu", "nao atendeu": "nao_atendeu",
-  "retornar": "retornar", "agendado": "agendado", "convertido": "convertido",
-  "sem interesse": "sem_interesse", "número errado": "numero_errado", "numero errado": "numero_errado",
-  "ignorado": "ignorado", "perdido?": "perdido", "perdido": "perdido",
-  "proposta": "proposta", "visita": "visita", "quer casa": "quer_casa",
-  "já comprou": "ja_comprou", "ja comprou": "ja_comprou", "comprou carro": "comprou_carro",
-  "não quer mais": "nao_quer_mais", "nao quer mais": "nao_quer_mais",
-  "respondeu": "respondeu", "repondeu": "respondeu", "mensagem zap": "mensagem_zap",
-  "número bloqueado": "numero_bloqueado", "numero bloqueado": "numero_bloqueado",
-  "ligação": "retornar", "ligacao": "retornar", "não atende": "nao_atendeu",
-  "nao atende": "nao_atendeu",
+  "novo": "novo",
+  "não atendeu": "nao_atendeu", "nao atendeu": "nao_atendeu", "não atende": "nao_atendeu", "nao atende": "nao_atendeu",
+  "retornar": "retornar", "ligação": "retornar", "ligacao": "retornar",
+  "respondeu": "respondeu", "repondeu": "respondeu",
+  "mensagem zap": "mensagem_zap", "msg zap": "mensagem_zap", "whatsapp": "mensagem_zap",
+  "interesse": "interesse",
+  "negociação": "negociacao", "negociacao": "negociacao",
+  "aguardando pagamento": "aguardando_pagamento", "aguardando pgto": "aguardando_pagamento",
+  "pago": "pago", "pagamento confirmado": "pago",
+  "entregue": "entregue",
+  "pós-venda": "pos_venda", "pos venda": "pos_venda", "pos-venda": "pos_venda",
+  "sem interesse": "sem_interesse",
+  "número errado": "numero_errado", "numero errado": "numero_errado",
+  "perdido": "perdido", "perdido?": "perdido",
 };
 
 // Lê célula com segurança — nunca quebra em undefined/null
@@ -46,7 +53,12 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   try {
     const GS_KEY = Deno.env.get("GOOGLE_SHEETS_API_KEY");
-    if (!GS_KEY) throw new Error("GOOGLE_SHEETS_API_KEY ausente");
+    if (!GS_KEY) throw new Error("GOOGLE_SHEETS_API_KEY ausente nos secrets do Supabase");
+
+    const SPREADSHEET_ID = Deno.env.get("SPREADSHEET_ID");
+    if (!SPREADSHEET_ID) throw new Error("SPREADSHEET_ID ausente nos secrets do Supabase");
+
+    const SOURCE_SHEETS = (Deno.env.get("SHEET_NAMES") ?? "Leads").split(",").map(s => s.trim()).filter(Boolean);
 
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) return new Response(JSON.stringify({ error: "Não autenticado" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });

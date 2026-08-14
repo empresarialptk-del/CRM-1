@@ -3,40 +3,35 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.95.0";
 
 // ── Configuração via variáveis de ambiente (nunca hardcoded) ─────────────────
 // No painel do Supabase: Settings → Edge Functions → Secrets
-// Adicione: SPREADSHEET_ID = 1Gnh83p4Frw3Tb2e9WVvF8ilezbrfLEwdqaJHrTL2zw8
+// SPREADSHEET_ID          = ID da planilha (da URL: .../spreadsheets/d/<ID>/edit)
+// GOOGLE_SERVICE_ACCOUNT_JSON = conteúdo completo do JSON da conta de serviço do Google Cloud
 const SHEETS_BASE = "https://sheets.googleapis.com/v4/spreadsheets";
 const DASHBOARD_SHEET = "DASHBOARD";
 
 const STATUS_TO_SHEET: Record<string, string> = {
-  novo:             "Novo",
-  retornar:         "LIGAÇÃO",
-  numero_errado:    "NUMERO ERRADO",
-  ja_comprou:       "JÁ COMPROU",
-  nao_atendeu:      "Não atendeu",
-  respondeu:        "Respondeu",
-  visita:           "Visita",
-  proposta:         "Proposta",
-  perdido:          "Perdido?",
-  ignorado:         "Ignorado",
-  mensagem_zap:     "Mensagem Zap",
-  comprou_carro:    "COMPROU CARRO",
-  quer_casa:        "QUER CASA",
-  agendado:         "Proposta",
-  convertido:       "JÁ COMPROU",
-  sem_interesse:    "Ignorado",
-  numero_bloqueado: "NUMERO ERRADO",
-  nao_quer_mais:    "Ignorado",
+  novo:                  "Novo",
+  nao_atendeu:           "Não atendeu",
+  retornar:              "Retornar",
+  respondeu:             "Respondeu",
+  mensagem_zap:          "Mensagem Zap",
+  interesse:             "Interesse",
+  negociacao:            "Negociação",
+  aguardando_pagamento:  "Aguardando pagamento",
+  pago:                  "Pago",
+  entregue:              "Entregue",
+  pos_venda:             "Pós-venda",
+  sem_interesse:         "Sem interesse",
+  numero_errado:         "Número errado",
+  perdido:               "Perdido",
 };
 
-// Status que contam como "encerrados" para o dashboard
+// Labels em português — usados no resumo do DASHBOARD
 const STATUS_LABELS_PT: Record<string, string> = {
-  novo: "Novo", retornar: "Retornar", nao_atendeu: "Não atendeu",
-  respondeu: "Respondeu", visita: "Visita", proposta: "Proposta",
-  agendado: "Agendado", convertido: "Convertido", sem_interesse: "Sem interesse",
-  numero_errado: "Nº errado", numero_bloqueado: "Bloqueado",
-  ja_comprou: "Já comprou", comprou_carro: "Comprou carro",
-  nao_quer_mais: "Não quer mais", perdido: "Perdido", ignorado: "Ignorado",
-  mensagem_zap: "Mensagem Zap", quer_casa: "Quer casa",
+  novo: "Novo", nao_atendeu: "Não atendeu", retornar: "Retornar",
+  respondeu: "Respondeu", mensagem_zap: "Mensagem Zap", interesse: "Interesse",
+  negociacao: "Negociação", aguardando_pagamento: "Aguardando pagamento",
+  pago: "Pago", entregue: "Entregue", pos_venda: "Pós-venda",
+  sem_interesse: "Sem interesse", numero_errado: "Número errado", perdido: "Perdido",
 };
 
 const LEAD_HEADER = [
