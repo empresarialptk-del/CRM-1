@@ -269,7 +269,7 @@ export default function Leads() {
         </div>
         <div className="flex gap-2 flex-wrap">
           <Button variant="outline" asChild>
-            <a href="https://docs.google.com/spreadsheets/d/1Gnh83p4Frw3Tb2e9WVvF8ilezbrfLEwdqaJHrTL2zw8/edit" target="_blank" rel="noopener noreferrer">
+            <a href="https://docs.google.com/spreadsheets/d/1ngYut4HZRwNnoZGt2x66IYxtUBJ239QTqeuMMcTqSNA/edit" target="_blank" rel="noopener noreferrer">
               <ExternalLink className="h-4 w-4 mr-2" />Abrir planilha
             </a>
           </Button>
