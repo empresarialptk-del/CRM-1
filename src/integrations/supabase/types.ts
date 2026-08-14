@@ -55,6 +55,53 @@ export type Database = {
           },
         ]
       }
+      eventos_calendario: {
+        Row: {
+          alvo_list_id: string | null
+          alvo_ticket_tier: string | null
+          created_at: string
+          criado_por: string
+          data: string
+          data_fim: string | null
+          descricao: string | null
+          id: string
+          tipo: Database["public"]["Enums"]["evento_calendario_tipo"]
+          titulo: string
+        }
+        Insert: {
+          alvo_list_id?: string | null
+          alvo_ticket_tier?: string | null
+          created_at?: string
+          criado_por: string
+          data: string
+          data_fim?: string | null
+          descricao?: string | null
+          id?: string
+          tipo: Database["public"]["Enums"]["evento_calendario_tipo"]
+          titulo: string
+        }
+        Update: {
+          alvo_list_id?: string | null
+          alvo_ticket_tier?: string | null
+          created_at?: string
+          criado_por?: string
+          data?: string
+          data_fim?: string | null
+          descricao?: string | null
+          id?: string
+          tipo?: Database["public"]["Enums"]["evento_calendario_tipo"]
+          titulo?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "eventos_calendario_alvo_list_id_fkey"
+            columns: ["alvo_list_id"]
+            isOneToOne: false
+            referencedRelation: "lead_lists"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       lead_audit: {
         Row: {
           alterado_em: string
@@ -271,6 +318,7 @@ export type Database = {
     }
     Enums: {
       app_role: "admin" | "gerente" | "atendente"
+      evento_calendario_tipo: "promocao" | "evento" | "novidade"
       lead_status:
         | "novo"
         | "nao_atendeu"
@@ -420,6 +468,7 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["admin", "gerente", "atendente"],
+      evento_calendario_tipo: ["promocao", "evento", "novidade"],
       lead_status: [
         "novo",
         "nao_atendeu",

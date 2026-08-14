@@ -734,3 +734,30 @@ export function summarizeCompras(compras: { valor: number; quantidade: number; d
   const ultimaCompraEm = compras.reduce((max, c) => c.data_compra > max ? c.data_compra : max, compras[0].data_compra);
   return { totalGasto, qtdCompras: compras.length, ticketMedio: totalGasto / compras.length, ultimaCompraEm };
 }
+
+// ══════════════════════════════════════════════════════════════════════════════
+// CALENDÁRIO — promoções, eventos e novidades planejados (tabela
+// eventos_calendario), opcionalmente direcionados a uma lista ou a um
+// segmento de ticket.
+// ══════════════════════════════════════════════════════════════════════════════
+export type EventoCalendarioTipo = "promocao" | "evento" | "novidade";
+
+export const EVENTO_CALENDARIO_TIPOS: EventoCalendarioTipo[] = ["promocao", "evento", "novidade"];
+
+export const EVENTO_CALENDARIO_LABELS: Record<EventoCalendarioTipo, string> = {
+  promocao: "Promoção",
+  evento: "Evento",
+  novidade: "Novidade",
+};
+
+export const EVENTO_CALENDARIO_COLOR: Record<EventoCalendarioTipo, string> = {
+  promocao: "bg-rose-100 text-rose-700 border-rose-200",
+  evento: "bg-violet-100 text-violet-700 border-violet-200",
+  novidade: "bg-sky-100 text-sky-700 border-sky-200",
+};
+
+export const EVENTO_CALENDARIO_EMOJI: Record<EventoCalendarioTipo, string> = {
+  promocao: "🔥",
+  evento: "🎉",
+  novidade: "✨",
+};
