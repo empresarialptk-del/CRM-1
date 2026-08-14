@@ -17,7 +17,7 @@ import {
   LEAD_FUNNEL_COLUMNS, LEAD_FUNNEL_LOST_COLUMN, getLeadFunnelColumn,
   MENSAGEM_CATEGORIA_LABELS, MENSAGEM_CATEGORIA_EMOJI,
   MENSAGEM_STATUS_CONTATO_LABELS, MENSAGEM_STATUS_CONTATO_COLOR, MENSAGEM_STATUS_CONTATO_EMOJI,
-  formatPhone, type MensagemStatusContato, type MensagemCategoria,
+  formatPhone, normalizeSheetStatus, type MensagemStatusContato, type MensagemCategoria,
 } from "@/lib/crm";
 import { calcLeadScore, scoreLabel } from "@/lib/leadScore";
 import { Search, Plus, Upload, ListPlus, AlertTriangle, Copy, Pencil, Trash2, ChevronDown, ArrowUp, ArrowDown, Layers, X as XIcon, ChevronRight, PhoneCall, MessageCircle, RefreshCw, ExternalLink, Download, ChevronLeft, Eye, UserCircle2, UserPlus } from "lucide-react";
@@ -273,8 +273,9 @@ export default function Leads() {
               <ExternalLink className="h-4 w-4 mr-2" />Abrir planilha
             </a>
           </Button>
-          <ImportFromSheetsButton onDone={async () => { await loadLists(); await loadRows(0); setPage(0); }} />
-          <SheetsSyncButton />
+          {/* "Importar da planilha" e "Sincronizar Sheets" ficam escondidos até
+              GOOGLE_SHEETS_API_KEY / GOOGLE_SERVICE_ACCOUNT_JSON serem configurados
+              nos secrets do Supabase — sem isso as duas só retornam erro. */}
           <Button variant="outline" onClick={exportCSV}>
             <Download className="h-4 w-4 mr-2" />Exportar CSV
           </Button>
@@ -820,17 +821,33 @@ function CreateListDialog({ onCreated, userId }: { onCreated: (id: string) => vo
   );
 }
 
-type ParsedRow = { nome: string; telefone: string; raw: string };
+type ParsedRow = { nome: string; telefone: string; status: string; origem: string; observacoes: string; raw: string };
 
 function parseInput(text: string): ParsedRow[] {
   return text.split(/\r?\n/).map(line => {
     const t = line.trim();
     if (!t) return null;
-    const parts = t.split(/\t|;|,/).map(p => p.trim()).filter(Boolean);
+
+    // Colado de uma planilha (Google Sheets/Excel) vem separado por TAB —
+    // nesse caso respeita a ordem de colunas: Nome, Telefone, Status, Origem, Observações.
+    // Sem TAB, mantém o formato simples "Nome, Telefone" por vírgula/ponto-e-vírgula.
+    if (t.includes("\t")) {
+      const cols = t.split("\t").map(p => p.trim());
+      return {
+        nome: cols[0] ?? "",
+        telefone: cols[1] ?? "",
+        status: normalizeSheetStatus(cols[2]),
+        origem: cols[3] || "manual",
+        observacoes: cols[4] || "",
+        raw: t,
+      };
+    }
+
+    const parts = t.split(/;|,/).map(p => p.trim()).filter(Boolean);
     let nome = "", telefone = "";
     if (parts.length >= 2) { nome = parts[0]; telefone = parts.slice(1).join(" "); }
     else { telefone = parts[0]; nome = ""; }
-    return { nome, telefone, raw: t };
+    return { nome, telefone, status: "novo", origem: "manual", observacoes: "", raw: t };
   }).filter(Boolean) as ParsedRow[];
 }
 
@@ -891,9 +908,10 @@ function AddLeadsDialog({ lists, defaultListId, onDone }: { lists: LeadList[]; d
       const toInsert = validRows.filter(r => !existingSet.has(r.digits)).map(r => ({
         nome: r.nome || `Lead ${r.digits.slice(-4)}`,
         telefone: r.digits,
-        status: "novo" as const,
+        status: r.status as any,
         list_id: listId,
-        origem: "manual",
+        origem: r.origem,
+        observacoes: r.observacoes || null,
       }));
 
       let insertedCount = 0;
@@ -954,11 +972,14 @@ function AddLeadsDialog({ lists, defaultListId, onDone }: { lists: LeadList[]; d
 
         <div>
           <label className="text-sm font-medium mb-1 block flex items-center gap-2">
-            <Upload className="h-4 w-4" /> Cole nome e telefone (um por linha)
+            <Upload className="h-4 w-4" /> Cole os leads (um por linha)
           </label>
           <Textarea value={text} onChange={e => setText(e.target.value)} rows={8}
             placeholder={"João Silva, 22988887777\nMaria, 22933224455\n..."} />
-          <p className="text-xs text-muted-foreground mt-1">Separe nome e telefone por vírgula. Se só houver telefone, será criado um nome padrão.</p>
+          <p className="text-xs text-muted-foreground mt-1">
+            Digitando: separe nome e telefone por vírgula. <strong>Colando direto de uma planilha</strong> (Google Sheets/Excel):
+            aceita as colunas Nome, Telefone, Status, Origem, Observações nessa ordem — Status e Origem são opcionais.
+          </p>
         </div>
 
         {analyzed.length > 0 && (

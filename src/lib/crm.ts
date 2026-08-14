@@ -435,32 +435,29 @@ export const STATUS_FROM_OUTCOME: Record<string, string> = {
   ignorado:                    "ignorado",
 };
 
-// ── Mapeamento planilha → status interno ──────────────────────────────────────
+// ── Mapeamento planilha → status interno (enum lead_status real) ─────────────
 export const SHEET_STATUS_MAP: Record<string, string> = {
-  "novo":"novo",
-  "não atendeu":"nao_atendeu", "nao atendeu":"nao_atendeu",
-  "retornar":"retornar", "respondeu":"respondeu", "mensagem zap":"mensagem_zap",
-  "interesse":"interesse",
-  "quer comprar":"pedido_pendente",
-  "pedido fechado":"pedido_confirmado", "pedido confirmado":"pedido_confirmado",
-  "aguardando pagamento":"pedido_aguard_pagamento",
-  "desistiu":"pedido_desistiu", "cancelou":"pedido_cancelado", "remarcado":"pedido_remarcado",
-  "pagamento confirmado":"pagamento_confirmado",
-  "em separação":"em_separacao", "em separacao":"em_separacao",
-  "enviado":"enviado", "em transporte":"em_transporte", "saiu para entrega":"saiu_entrega",
-  "entregue":"entregue", "pós-venda":"pos_venda", "pos venda":"pos_venda",
-  "aguardando recompra":"aguardando_recompra", "recomprou":"recomprou",
-  "sem interesse":"sem_interesse", "número errado":"numero_errado",
-  "numero errado":"numero_errado", "ignorado":"ignorado",
-  "perdido":"perdido", "perdido?":"perdido",
-  "achou caro":"achou_caro", "comprou de outra loja":"comprou_concorrente",
-  "não quer mais":"nao_quer_mais", "nao quer mais":"nao_quer_mais",
-  "bloqueado":"numero_bloqueado", "número bloqueado":"numero_bloqueado",
+  "novo": "novo",
+  "não atendeu": "nao_atendeu", "nao atendeu": "nao_atendeu", "não atende": "nao_atendeu", "nao atende": "nao_atendeu",
+  "retornar": "retornar", "ligação": "retornar", "ligacao": "retornar",
+  "respondeu": "respondeu",
+  "mensagem zap": "mensagem_zap", "msg zap": "mensagem_zap", "whatsapp": "mensagem_zap", "zap": "mensagem_zap",
+  "interesse": "interesse",
+  "negociação": "negociacao", "negociacao": "negociacao",
+  "aguardando pagamento": "aguardando_pagamento", "aguardando pgto": "aguardando_pagamento",
+  "pago": "pago", "pagamento confirmado": "pago",
+  "entregue": "entregue",
+  "pós-venda": "pos_venda", "pos venda": "pos_venda", "pos-venda": "pos_venda",
+  "sem interesse": "sem_interesse",
+  "número errado": "numero_errado", "numero errado": "numero_errado",
+  "perdido": "perdido", "perdido?": "perdido",
 };
 
 export function normalizeSheetStatus(raw: string | null | undefined): string {
   if (!raw) return "novo";
-  return SHEET_STATUS_MAP[raw.toString().trim().toLowerCase()] ?? "novo";
+  const key = raw.toString().trim().toLowerCase();
+  if ((LEAD_STATUSES as string[]).includes(key)) return key;
+  return SHEET_STATUS_MAP[key] ?? "novo";
 }
 
 // ── Formatadores ──────────────────────────────────────────────────────────────
