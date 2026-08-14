@@ -17,6 +17,7 @@ import Pipeline from "./pages/Pipeline.tsx";
 import Home from "./pages/Home.tsx";
 import Relacionamento from "./pages/Relacionamento.tsx";
 import Calendario from "./pages/Calendario.tsx";
+import Pedidos from "./pages/Pedidos.tsx";
 import AppLayout from "./components/AppLayout.tsx";
 import NotFound from "./pages/NotFound.tsx";
 
@@ -37,6 +38,7 @@ const App = () => (
             <Route path="/leads"                 element={<Leads />} />
             <Route path="/crm"                   element={<CRM />} />
             <Route path="/relacionamento"        element={<Relacionamento />} />
+            <Route path="/pedidos"               element={<Pedidos />} />
             <Route path="/calendario"            element={<Calendario />} />
             <Route path="/historico"             element={<CallHistory />} />
             <Route path="/dashboard"             element={<MyDashboard />} />

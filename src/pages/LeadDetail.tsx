@@ -17,7 +17,11 @@ import {
   MENSAGEM_CATEGORIA_LABELS, MENSAGEM_CATEGORIA_EMOJI,
   MENSAGEM_STATUS_CONTATO_ORDER, MENSAGEM_STATUS_CONTATO_LABELS, MENSAGEM_STATUS_CONTATO_COLOR, MENSAGEM_STATUS_CONTATO_EMOJI,
   TICKET_TIER_LABELS, TICKET_TIER_COLOR, TICKET_TIER_EMOJI, classifyTicketTier, summarizeCompras,
+  PEDIDO_STATUS_PAGAMENTO_ORDER, PEDIDO_STATUS_PAGAMENTO_LABELS, PEDIDO_STATUS_PAGAMENTO_COLOR, PEDIDO_STATUS_PAGAMENTO_EMOJI,
+  PEDIDO_STATUS_ENTREGA_ORDER, PEDIDO_STATUS_ENTREGA_LABELS, PEDIDO_STATUS_ENTREGA_COLOR, PEDIDO_STATUS_ENTREGA_EMOJI,
+  FORMAS_PAGAMENTO, summarizePedido,
   formatPhone, formatCurrency, type MensagemCategoria, type MensagemStatusContato,
+  type PedidoStatusPagamento, type PedidoStatusEntrega,
 } from "@/lib/crm";
 import { calcLeadScore, scoreLabel } from "@/lib/leadScore";
 import { loadProfile } from "@/lib/profile";
@@ -25,7 +29,7 @@ import {
   ArrowLeft, Phone, MessageCircle, CalendarDays,
   Pencil, Save, X, Award, CalendarClock,
   ChevronRight, ArrowRight, Trophy, AlertTriangle, History, RotateCcw,
-  FileText, ShieldCheck, UserCircle2, UserPlus, ShoppingBag, Plus,
+  FileText, ShieldCheck, UserCircle2, UserPlus, ShoppingBag, Plus, Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -43,7 +47,12 @@ type Mensagem = {
 };
 
 type Profile = { id: string; full_name: string };
-type Compra = { id: string; produto: string; quantidade: number; valor: number; origem: string; data_compra: string };
+type Compra = { id: string; produto: string; quantidade: number; valor: number; custo: number; origem: string; data_compra: string; pedido_id: string | null };
+type Pedido = {
+  id: string; numero: number; status_pagamento: PedidoStatusPagamento; status_entrega: PedidoStatusEntrega;
+  forma_pagamento: string | null; desconto: number; frete: number; endereco_entrega: string | null;
+  observacoes: string | null; vendedor_id: string | null; created_at: string;
+};
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function toDatetimeLocal(iso: string | null | undefined): string {
@@ -104,7 +113,8 @@ export default function LeadDetail() {
   const [mensagens, setMensagens] = useState<Mensagem[]>([]);
   const [profiles, setProfiles]   = useState<Profile[]>([]);
   const [compras, setCompras]     = useState<Compra[]>([]);
-  const [showAddCompra, setShowAddCompra] = useState(false);
+  const [pedidos, setPedidos]     = useState<Pedido[]>([]);
+  const [showNewPedido, setShowNewPedido] = useState(false);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing]   = useState(false);
   const [saving, setSaving]     = useState(false);
@@ -123,7 +133,7 @@ export default function LeadDetail() {
   const load = useCallback(async () => {
     if (!id) return;
     setLoading(true);
-    const [{ data: leadData }, { data: msgData }, { data: auditData }, { data: profilesData }, { data: comprasData }] = await Promise.all([
+    const [{ data: leadData }, { data: msgData }, { data: auditData }, { data: profilesData }, { data: comprasData }, { data: pedidosData }] = await Promise.all([
       supabase.from("leads").select("*").eq("id", id).single(),
       supabase.from("mensagens")
         .select("id,categoria,texto,status_contato,observacao,enviada_em")
@@ -136,9 +146,13 @@ export default function LeadDetail() {
         .limit(100),
       supabase.from("profiles").select("id,full_name").order("full_name", { ascending: true }),
       supabase.from("compras")
-        .select("id,produto,quantidade,valor,origem,data_compra")
+        .select("id,produto,quantidade,valor,custo,origem,data_compra,pedido_id")
         .eq("lead_id", id)
         .order("data_compra", { ascending: false }),
+      supabase.from("pedidos")
+        .select("id,numero,status_pagamento,status_entrega,forma_pagamento,desconto,frete,endereco_entrega,observacoes,vendedor_id,created_at")
+        .eq("lead_id", id)
+        .order("created_at", { ascending: false }),
     ]);
     if (leadData) {
       setLead(leadData as Lead);
@@ -152,6 +166,7 @@ export default function LeadDetail() {
     setMensagens((msgData ?? []) as Mensagem[]);
     setAudits((auditData ?? []) as Audit[]);
     setCompras((comprasData ?? []) as Compra[]);
+    setPedidos((pedidosData ?? []) as Pedido[]);
     setProfiles((profilesData ?? []) as Profile[]);
     setLoading(false);
   }, [id]);
@@ -241,20 +256,67 @@ export default function LeadDetail() {
     setMensagens(prev => prev.map(m => m.id === msg.id ? { ...m, status_contato } : m));
   }
 
-  async function addCompra(patch: { produto: string; quantidade: number; valor: number; origem: string; data_compra: string }) {
+  // Avança lead.status quando um pedido é pago/entregue — nunca regride nem reativa perdido.
+  async function syncLeadStatusFromPedido(statusPagamento: PedidoStatusPagamento, statusEntrega: PedidoStatusEntrega) {
     if (!lead) return;
-    const { data, error } = await supabase.from("compras").insert({
-      lead_id: lead.id,
-      produto: patch.produto,
-      quantidade: patch.quantidade,
-      valor: patch.valor,
-      origem: patch.origem,
-      data_compra: patch.data_compra,
-    }).select("id,produto,quantidade,valor,origem,data_compra").single();
+    const targetStatus = statusEntrega === "entregue" ? "entregue" : statusPagamento === "pago" ? "pago" : null;
+    if (!targetStatus) return;
+    if (LEAD_STATUS_LOST.includes(lead.status as any)) return;
+    const currentIdx = LEAD_FUNNEL_COLUMNS.findIndex(c => c.statuses.includes(lead.status as any));
+    const targetIdx  = LEAD_FUNNEL_COLUMNS.findIndex(c => c.statuses.includes(targetStatus as any));
+    if (targetIdx <= currentIdx) return;
+    await advanceStatus(targetStatus);
+  }
+
+  async function createPedido(input: {
+    itens: { produto: string; quantidade: number; valor: number; custo: number }[];
+    forma_pagamento: string; desconto: number; frete: number; endereco_entrega: string; observacoes: string;
+    origem: string; status_pagamento: PedidoStatusPagamento; status_entrega: PedidoStatusEntrega;
+  }) {
+    if (!lead || !user) return;
+    const validItens = input.itens.filter(i => i.produto.trim() && i.valor > 0);
+    if (validItens.length === 0) { toast.error("Adicione ao menos um item com produto e valor."); return; }
+
+    const { data: pedido, error } = await supabase.from("pedidos").insert({
+      lead_id: lead.id, vendedor_id: user.id, criado_por: user.id,
+      status_pagamento: input.status_pagamento, status_entrega: input.status_entrega,
+      forma_pagamento: input.forma_pagamento || null, desconto: input.desconto, frete: input.frete,
+      endereco_entrega: input.endereco_entrega || null, observacoes: input.observacoes || null,
+    }).select("id,numero,status_pagamento,status_entrega,forma_pagamento,desconto,frete,endereco_entrega,observacoes,vendedor_id,created_at").single();
     if (error) { toast.error(error.message); return; }
-    setCompras(prev => [data as Compra, ...prev].sort((a, b) => b.data_compra.localeCompare(a.data_compra)));
-    setShowAddCompra(false);
-    toast.success("Compra registrada");
+
+    const now = new Date().toISOString();
+    const { data: itensData, error: itensErr } = await supabase.from("compras").insert(
+      validItens.map(i => ({
+        lead_id: lead.id, pedido_id: pedido!.id, produto: i.produto.trim(),
+        quantidade: i.quantidade, valor: i.valor, custo: i.custo, origem: input.origem, data_compra: now,
+      }))
+    ).select("id,produto,quantidade,valor,custo,origem,data_compra,pedido_id");
+    if (itensErr) { toast.error(itensErr.message); return; }
+
+    setPedidos(prev => [pedido as Pedido, ...prev]);
+    setCompras(prev => [...((itensData ?? []) as Compra[]), ...prev]);
+    setShowNewPedido(false);
+    toast.success(`Pedido #${pedido!.numero} criado`);
+    await syncLeadStatusFromPedido(input.status_pagamento, input.status_entrega);
+  }
+
+  async function setPedidoStatusPagamento(pedido: Pedido, status_pagamento: PedidoStatusPagamento) {
+    if (status_pagamento === pedido.status_pagamento) return;
+    const { error } = await supabase.from("pedidos").update({ status_pagamento }).eq("id", pedido.id);
+    if (error) { toast.error(error.message); return; }
+    setPedidos(prev => prev.map(p => p.id === pedido.id ? { ...p, status_pagamento } : p));
+    toast.success(`Pedido #${pedido.numero} → ${PEDIDO_STATUS_PAGAMENTO_LABELS[status_pagamento]}`);
+    await syncLeadStatusFromPedido(status_pagamento, pedido.status_entrega);
+  }
+
+  async function setPedidoStatusEntrega(pedido: Pedido, status_entrega: PedidoStatusEntrega) {
+    if (status_entrega === pedido.status_entrega) return;
+    const { error } = await supabase.from("pedidos").update({ status_entrega }).eq("id", pedido.id);
+    if (error) { toast.error(error.message); return; }
+    setPedidos(prev => prev.map(p => p.id === pedido.id ? { ...p, status_entrega } : p));
+    toast.success(`Pedido #${pedido.numero} → ${PEDIDO_STATUS_ENTREGA_LABELS[status_entrega]}`);
+    await syncLeadStatusFromPedido(pedido.status_pagamento, status_entrega);
   }
 
   // ── Computados ────────────────────────────────────────────────────────────
@@ -265,6 +327,13 @@ export default function LeadDetail() {
 
   const compraResumo = summarizeCompras(compras);
   const ticketTier    = classifyTicketTier(compraResumo.ticketMedio, loadProfile());
+  const itensByPedido = new Map<string, Compra[]>();
+  for (const c of compras) {
+    if (!c.pedido_id) continue;
+    const arr = itensByPedido.get(c.pedido_id) ?? [];
+    arr.push(c);
+    itensByPedido.set(c.pedido_id, arr);
+  }
 
   const score = lead ? calcLeadScore({
     callCount:     totalMensagens,
@@ -472,6 +541,101 @@ export default function LeadDetail() {
                       <CalendarDays className="h-3.5 w-3.5"/> Enviar mensagem
                     </button>
                   </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* ── Pedidos ───────────────────────────────────────────────── */}
+          <Card className="shadow-card">
+            <CardContent className="p-5 space-y-3">
+              <div className="flex items-center justify-between">
+                <p className="font-semibold text-sm flex items-center gap-1.5">
+                  <ShoppingBag className="h-4 w-4 text-primary"/> Pedidos
+                  <span className="text-xs font-bold px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground">{pedidos.length}</span>
+                </p>
+                <button onClick={() => setShowNewPedido(true)}
+                  className="flex items-center gap-1 text-xs font-medium text-primary hover:underline">
+                  <Plus className="h-3.5 w-3.5"/> Novo pedido
+                </button>
+              </div>
+
+              {pedidos.length === 0 ? (
+                <p className="text-xs text-muted-foreground italic py-2">Nenhum pedido registrado ainda.</p>
+              ) : (
+                <div className="space-y-3">
+                  {pedidos.map(pedido => {
+                    const itens = itensByPedido.get(pedido.id) ?? [];
+                    const resumo = summarizePedido(itens, pedido);
+                    return (
+                      <div key={pedido.id} className="border rounded-xl p-3 space-y-2.5">
+                        <div className="flex items-center justify-between flex-wrap gap-1">
+                          <span className="text-sm font-bold">Pedido #{pedido.numero}</span>
+                          <span className="text-xs text-muted-foreground">
+                            {new Date(pedido.created_at).toLocaleDateString("pt-BR", { day:"2-digit", month:"2-digit", year:"2-digit" })}
+                          </span>
+                        </div>
+
+                        <div className="flex gap-1 flex-wrap">
+                          {PEDIDO_STATUS_PAGAMENTO_ORDER.map(s => (
+                            <button key={s} onClick={() => setPedidoStatusPagamento(pedido, s)}
+                              className={`text-[10px] font-semibold px-2 py-1 rounded-full border transition-colors ${
+                                pedido.status_pagamento === s ? PEDIDO_STATUS_PAGAMENTO_COLOR[s] + " ring-1 ring-inset ring-current border-transparent" : "text-muted-foreground border-muted hover:border-foreground/30"
+                              }`}>
+                              {PEDIDO_STATUS_PAGAMENTO_EMOJI[s]} {PEDIDO_STATUS_PAGAMENTO_LABELS[s]}
+                            </button>
+                          ))}
+                        </div>
+                        <div className="flex gap-1 flex-wrap">
+                          {PEDIDO_STATUS_ENTREGA_ORDER.map(s => (
+                            <button key={s} onClick={() => setPedidoStatusEntrega(pedido, s)}
+                              className={`text-[10px] font-semibold px-2 py-1 rounded-full border transition-colors ${
+                                pedido.status_entrega === s ? PEDIDO_STATUS_ENTREGA_COLOR[s] + " ring-1 ring-inset ring-current border-transparent" : "text-muted-foreground border-muted hover:border-foreground/30"
+                              }`}>
+                              {PEDIDO_STATUS_ENTREGA_EMOJI[s]} {PEDIDO_STATUS_ENTREGA_LABELS[s]}
+                            </button>
+                          ))}
+                        </div>
+
+                        {itens.length > 0 && (
+                          <div className="space-y-1 border-t pt-2">
+                            {itens.map(it => (
+                              <div key={it.id} className="flex items-center justify-between text-xs">
+                                <span className="text-muted-foreground truncate">{it.produto}{it.quantidade > 1 ? ` ×${it.quantidade}` : ""}</span>
+                                <span className="font-medium tabular-nums shrink-0">{formatCurrency(it.valor)}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        <div className="border-t pt-2 grid grid-cols-2 gap-x-2 gap-y-0.5 text-xs">
+                          <span className="text-muted-foreground">Subtotal</span>
+                          <span className="text-right tabular-nums">{formatCurrency(resumo.subtotal)}</span>
+                          {pedido.desconto > 0 && (<>
+                            <span className="text-muted-foreground">Desconto</span>
+                            <span className="text-right tabular-nums text-rose-600">-{formatCurrency(pedido.desconto)}</span>
+                          </>)}
+                          {pedido.frete > 0 && (<>
+                            <span className="text-muted-foreground">Frete</span>
+                            <span className="text-right tabular-nums">{formatCurrency(pedido.frete)}</span>
+                          </>)}
+                          <span className="font-bold">Total</span>
+                          <span className="text-right font-bold tabular-nums">{formatCurrency(resumo.total)}</span>
+                          {resumo.margemPct !== null && (<>
+                            <span className="text-muted-foreground">Margem</span>
+                            <span className="text-right tabular-nums text-emerald-600">{formatCurrency(resumo.margem)} ({resumo.margemPct}%)</span>
+                          </>)}
+                        </div>
+
+                        {(pedido.forma_pagamento || pedido.endereco_entrega) && (
+                          <div className="text-[10px] text-muted-foreground space-y-0.5">
+                            {pedido.forma_pagamento && <p>💳 {pedido.forma_pagamento}</p>}
+                            {pedido.endereco_entrega && <p>📍 {pedido.endereco_entrega}</p>}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </CardContent>
@@ -744,18 +908,12 @@ export default function LeadDetail() {
         {/* ── Coluna lateral ───────────────────────────────────────────── */}
         <div className="space-y-4">
 
-          {/* Compras */}
+          {/* Resumo de compras */}
           <Card className="shadow-card">
             <CardContent className="p-5 space-y-3">
-              <div className="flex items-center justify-between">
-                <p className="font-semibold text-sm flex items-center gap-1.5">
-                  <ShoppingBag className="h-4 w-4 text-primary"/> Compras
-                </p>
-                <button onClick={() => setShowAddCompra(true)}
-                  className="h-6 w-6 flex items-center justify-center rounded-lg border border-primary/30 text-primary hover:bg-primary/10 transition-colors">
-                  <Plus className="h-3.5 w-3.5"/>
-                </button>
-              </div>
+              <p className="font-semibold text-sm flex items-center gap-1.5">
+                <ShoppingBag className="h-4 w-4 text-primary"/> Resumo de compras
+              </p>
 
               <Badge variant="secondary" className={`w-fit ${TICKET_TIER_COLOR[ticketTier]}`}>
                 {TICKET_TIER_EMOJI[ticketTier]} {TICKET_TIER_LABELS[ticketTier]}
@@ -772,23 +930,9 @@ export default function LeadDetail() {
                 </div>
               </div>
 
-              {compras.length === 0 ? (
-                <p className="text-xs text-muted-foreground italic text-center py-2">Nenhuma compra registrada.</p>
-              ) : (
-                <div className="space-y-1.5 max-h-48 overflow-y-auto">
-                  {compras.map(c => (
-                    <div key={c.id} className="flex items-center justify-between gap-2 text-xs p-2 rounded-lg bg-muted/30">
-                      <div className="min-w-0">
-                        <p className="font-medium truncate">{c.produto}{c.quantidade > 1 ? ` ×${c.quantidade}` : ""}</p>
-                        <p className="text-[10px] text-muted-foreground">
-                          {new Date(c.data_compra).toLocaleDateString("pt-BR", { day:"2-digit", month:"2-digit", year:"2-digit" })} · {c.origem}
-                        </p>
-                      </div>
-                      <span className="font-bold tabular-nums shrink-0">{formatCurrency(c.valor)}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
+              <p className="text-[10px] text-muted-foreground text-center">
+                {pedidos.length} pedido{pedidos.length === 1 ? "" : "s"} registrado{pedidos.length === 1 ? "" : "s"}
+              </p>
             </CardContent>
           </Card>
 
@@ -874,52 +1018,112 @@ export default function LeadDetail() {
         </div>
       </div>
 
-      {showAddCompra && (
-        <AddCompraDialog onSave={addCompra} onClose={() => setShowAddCompra(false)}/>
+      {showNewPedido && (
+        <NewPedidoDialog onSave={createPedido} onClose={() => setShowNewPedido(false)}/>
       )}
     </div>
   );
 }
 
-function AddCompraDialog({ onSave, onClose }: {
-  onSave: (patch: { produto: string; quantidade: number; valor: number; origem: string; data_compra: string }) => void;
+type PedidoItemRow = { produto: string; quantidade: number; valor: string; custo: string };
+
+function NewPedidoDialog({ onSave, onClose }: {
+  onSave: (input: {
+    itens: { produto: string; quantidade: number; valor: number; custo: number }[];
+    forma_pagamento: string; desconto: number; frete: number; endereco_entrega: string; observacoes: string;
+    origem: string; status_pagamento: PedidoStatusPagamento; status_entrega: PedidoStatusEntrega;
+  }) => void | Promise<void>;
   onClose: () => void;
 }) {
-  const [produto, setProduto]     = useState("");
-  const [quantidade, setQuantidade] = useState(1);
-  const [valor, setValor]         = useState("");
-  const [origem, setOrigem]       = useState("loja");
-  const [data, setData]           = useState(() => new Date().toISOString().slice(0, 10));
-  const [saving, setSaving]       = useState(false);
+  const [itens, setItens] = useState<PedidoItemRow[]>([{ produto: "", quantidade: 1, valor: "", custo: "" }]);
+  const [formaPagamento, setFormaPagamento] = useState(FORMAS_PAGAMENTO[0]);
+  const [origem, setOrigem]           = useState("loja");
+  const [desconto, setDesconto]       = useState("");
+  const [frete, setFrete]             = useState("");
+  const [enderecoEntrega, setEnderecoEntrega] = useState("");
+  const [observacoes, setObservacoes] = useState("");
+  const [statusPagamento, setStatusPagamento] = useState<PedidoStatusPagamento>("aguardando");
+  const [statusEntrega, setStatusEntrega]     = useState<PedidoStatusEntrega>("preparando");
+  const [saving, setSaving]           = useState(false);
+
+  function updateItem(idx: number, patch: Partial<PedidoItemRow>) {
+    setItens(prev => prev.map((it, i) => i === idx ? { ...it, ...patch } : it));
+  }
+  function addItem() {
+    setItens(prev => [...prev, { produto: "", quantidade: 1, valor: "", custo: "" }]);
+  }
+  function removeItem(idx: number) {
+    setItens(prev => prev.filter((_, i) => i !== idx));
+  }
+
+  const parsedItens = itens.map(it => ({
+    produto: it.produto.trim(),
+    quantidade: it.quantidade,
+    valor: Number(it.valor.replace(",", ".")) || 0,
+    custo: Number(it.custo.replace(",", ".")) || 0,
+  }));
+  const descontoNum = Number(desconto.replace(",", ".")) || 0;
+  const freteNum    = Number(frete.replace(",", ".")) || 0;
+  const resumo = summarizePedido(parsedItens, { desconto: descontoNum, frete: freteNum });
 
   async function handleSave() {
-    const v = Number(valor.replace(",", "."));
-    if (!produto.trim() || !v || v <= 0) { toast.error("Preencha produto e valor."); return; }
+    const valid = parsedItens.filter(i => i.produto && i.valor > 0);
+    if (valid.length === 0) { toast.error("Adicione ao menos um item com produto e valor."); return; }
     setSaving(true);
-    await onSave({ produto: produto.trim(), quantidade, valor: v, origem, data_compra: new Date(data + "T12:00:00").toISOString() });
+    await onSave({
+      itens: parsedItens, forma_pagamento: formaPagamento, desconto: descontoNum, frete: freteNum,
+      endereco_entrega: enderecoEntrega.trim(), observacoes: observacoes.trim(), origem,
+      status_pagamento: statusPagamento, status_entrega: statusEntrega,
+    });
     setSaving(false);
   }
 
   return (
     <Dialog open onOpenChange={o => { if (!o) onClose(); }}>
-      <DialogContent className="max-w-sm">
-        <DialogHeader><DialogTitle>Registrar compra</DialogTitle></DialogHeader>
-        <div className="space-y-3">
-          <div className="space-y-1.5">
-            <Label>Produto</Label>
-            <Input value={produto} onChange={e => setProduto(e.target.value)} placeholder="Ex: Perfume 100ml"/>
+      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogHeader><DialogTitle>Novo pedido</DialogTitle></DialogHeader>
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <Label>Itens</Label>
+            {itens.map((it, idx) => (
+              <div key={idx} className="flex items-end gap-2">
+                <div className="flex-1 space-y-1">
+                  {idx === 0 && <span className="text-[10px] text-muted-foreground">Produto</span>}
+                  <Input value={it.produto} onChange={e => updateItem(idx, { produto: e.target.value })} placeholder="Ex: Perfume 100ml"/>
+                </div>
+                <div className="w-16 space-y-1">
+                  {idx === 0 && <span className="text-[10px] text-muted-foreground">Qtd</span>}
+                  <Input type="number" min="1" value={it.quantidade} onChange={e => updateItem(idx, { quantidade: Number(e.target.value) || 1 })}/>
+                </div>
+                <div className="w-24 space-y-1">
+                  {idx === 0 && <span className="text-[10px] text-muted-foreground">Valor</span>}
+                  <Input value={it.valor} onChange={e => updateItem(idx, { valor: e.target.value })} placeholder="129,90"/>
+                </div>
+                <div className="w-24 space-y-1">
+                  {idx === 0 && <span className="text-[10px] text-muted-foreground">Custo</span>}
+                  <Input value={it.custo} onChange={e => updateItem(idx, { custo: e.target.value })} placeholder="60,00"/>
+                </div>
+                <button onClick={() => removeItem(idx)} disabled={itens.length === 1}
+                  className="h-9 w-9 flex items-center justify-center rounded-lg border text-muted-foreground hover:text-rose-600 hover:border-rose-300 transition-colors disabled:opacity-30 disabled:pointer-events-none shrink-0">
+                  <Trash2 className="h-3.5 w-3.5"/>
+                </button>
+              </div>
+            ))}
+            <button onClick={addItem} className="flex items-center gap-1 text-xs font-medium text-primary hover:underline">
+              <Plus className="h-3.5 w-3.5"/> Adicionar item
+            </button>
           </div>
+
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label>Quantidade</Label>
-              <Input type="number" min="1" value={quantidade} onChange={e => setQuantidade(Number(e.target.value) || 1)}/>
+              <Label>Forma de pagamento</Label>
+              <Select value={formaPagamento} onValueChange={setFormaPagamento}>
+                <SelectTrigger><SelectValue/></SelectTrigger>
+                <SelectContent>
+                  {FORMAS_PAGAMENTO.map(f => <SelectItem key={f} value={f}>{f}</SelectItem>)}
+                </SelectContent>
+              </Select>
             </div>
-            <div className="space-y-1.5">
-              <Label>Valor (R$)</Label>
-              <Input value={valor} onChange={e => setValor(e.target.value)} placeholder="Ex: 129,90"/>
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label>Origem</Label>
               <Select value={origem} onValueChange={setOrigem}>
@@ -931,17 +1135,69 @@ function AddCompraDialog({ onSave, onClose }: {
                 </SelectContent>
               </Select>
             </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label>Data</Label>
-              <Input type="date" value={data} onChange={e => setData(e.target.value)}/>
+              <Label>Desconto (R$)</Label>
+              <Input value={desconto} onChange={e => setDesconto(e.target.value)} placeholder="0,00"/>
             </div>
+            <div className="space-y-1.5">
+              <Label>Frete (R$)</Label>
+              <Input value={frete} onChange={e => setFrete(e.target.value)} placeholder="0,00"/>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label>Status pagamento</Label>
+              <Select value={statusPagamento} onValueChange={v => setStatusPagamento(v as PedidoStatusPagamento)}>
+                <SelectTrigger><SelectValue/></SelectTrigger>
+                <SelectContent>
+                  {PEDIDO_STATUS_PAGAMENTO_ORDER.map(s => (
+                    <SelectItem key={s} value={s}>{PEDIDO_STATUS_PAGAMENTO_EMOJI[s]} {PEDIDO_STATUS_PAGAMENTO_LABELS[s]}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Status entrega</Label>
+              <Select value={statusEntrega} onValueChange={v => setStatusEntrega(v as PedidoStatusEntrega)}>
+                <SelectTrigger><SelectValue/></SelectTrigger>
+                <SelectContent>
+                  {PEDIDO_STATUS_ENTREGA_ORDER.map(s => (
+                    <SelectItem key={s} value={s}>{PEDIDO_STATUS_ENTREGA_EMOJI[s]} {PEDIDO_STATUS_ENTREGA_LABELS[s]}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label>Endereço de entrega</Label>
+            <Input value={enderecoEntrega} onChange={e => setEnderecoEntrega(e.target.value)} placeholder="Opcional"/>
+          </div>
+          <div className="space-y-1.5">
+            <Label>Observações</Label>
+            <Textarea value={observacoes} onChange={e => setObservacoes(e.target.value)} rows={2} placeholder="Opcional"/>
+          </div>
+
+          <div className="border-t pt-3 grid grid-cols-2 gap-x-3 gap-y-1 text-sm">
+            <span className="text-muted-foreground">Subtotal</span>
+            <span className="text-right tabular-nums">{formatCurrency(resumo.subtotal)}</span>
+            <span className="font-bold">Total</span>
+            <span className="text-right font-bold tabular-nums">{formatCurrency(resumo.total)}</span>
+            {resumo.margemPct !== null && (<>
+              <span className="text-muted-foreground">Margem estimada</span>
+              <span className="text-right tabular-nums text-emerald-600">{formatCurrency(resumo.margem)} ({resumo.margemPct}%)</span>
+            </>)}
           </div>
         </div>
         <DialogFooter className="mt-2">
           <button onClick={onClose} className="px-4 py-2 text-sm rounded-lg border hover:bg-muted transition-colors flex items-center gap-1.5">
             <X className="h-3.5 w-3.5"/> Cancelar
           </button>
-          <Button onClick={handleSave} disabled={saving}>{saving ? "Salvando…" : "Registrar"}</Button>
+          <Button onClick={handleSave} disabled={saving}>{saving ? "Salvando…" : "Criar pedido"}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

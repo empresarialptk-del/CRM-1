@@ -17,30 +17,36 @@ export type Database = {
       compras: {
         Row: {
           created_at: string
+          custo: number
           data_compra: string
           id: string
           lead_id: string
           origem: string
+          pedido_id: string | null
           produto: string
           quantidade: number
           valor: number
         }
         Insert: {
           created_at?: string
+          custo?: number
           data_compra?: string
           id?: string
           lead_id: string
           origem?: string
+          pedido_id?: string | null
           produto: string
           quantidade?: number
           valor?: number
         }
         Update: {
           created_at?: string
+          custo?: number
           data_compra?: string
           id?: string
           lead_id?: string
           origem?: string
+          pedido_id?: string | null
           produto?: string
           quantidade?: number
           valor?: number
@@ -51,6 +57,13 @@ export type Database = {
             columns: ["lead_id"]
             isOneToOne: false
             referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compras_pedido_id_fkey"
+            columns: ["pedido_id"]
+            isOneToOne: false
+            referencedRelation: "pedidos"
             referencedColumns: ["id"]
           },
         ]
@@ -264,6 +277,65 @@ export type Database = {
           },
         ]
       }
+      pedidos: {
+        Row: {
+          created_at: string
+          criado_por: string
+          desconto: number
+          endereco_entrega: string | null
+          forma_pagamento: string | null
+          frete: number
+          id: string
+          lead_id: string
+          numero: number
+          observacoes: string | null
+          status_entrega: Database["public"]["Enums"]["pedido_status_entrega"]
+          status_pagamento: Database["public"]["Enums"]["pedido_status_pagamento"]
+          updated_at: string
+          vendedor_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          criado_por: string
+          desconto?: number
+          endereco_entrega?: string | null
+          forma_pagamento?: string | null
+          frete?: number
+          id?: string
+          lead_id: string
+          numero?: number
+          observacoes?: string | null
+          status_entrega?: Database["public"]["Enums"]["pedido_status_entrega"]
+          status_pagamento?: Database["public"]["Enums"]["pedido_status_pagamento"]
+          updated_at?: string
+          vendedor_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          criado_por?: string
+          desconto?: number
+          endereco_entrega?: string | null
+          forma_pagamento?: string | null
+          frete?: number
+          id?: string
+          lead_id?: string
+          numero?: number
+          observacoes?: string | null
+          status_entrega?: Database["public"]["Enums"]["pedido_status_entrega"]
+          status_pagamento?: Database["public"]["Enums"]["pedido_status_pagamento"]
+          updated_at?: string
+          vendedor_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pedidos_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           created_at: string
@@ -340,6 +412,8 @@ export type Database = {
         | "vista"
         | "respondida"
         | "sem_retorno"
+      pedido_status_entrega: "preparando" | "enviado" | "entregue"
+      pedido_status_pagamento: "aguardando" | "pago" | "estornado"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -492,6 +566,8 @@ export const Constants = {
         "respondida",
         "sem_retorno",
       ],
+      pedido_status_entrega: ["preparando", "enviado", "entregue"],
+      pedido_status_pagamento: ["aguardando", "pago", "estornado"],
     },
   },
 } as const

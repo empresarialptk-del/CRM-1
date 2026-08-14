@@ -733,6 +733,63 @@ export function summarizeCompras(compras: { valor: number; quantidade: number; d
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
+// PEDIDOS — cabeçalho da venda (pagamento, entrega, vendedor). Os itens do
+// pedido são linhas da tabela `compras` com `pedido_id` preenchido.
+// ══════════════════════════════════════════════════════════════════════════════
+export type PedidoStatusPagamento = "aguardando" | "pago" | "estornado";
+export type PedidoStatusEntrega = "preparando" | "enviado" | "entregue";
+
+export const PEDIDO_STATUS_PAGAMENTO_LABELS: Record<PedidoStatusPagamento, string> = {
+  aguardando: "Aguardando pagamento",
+  pago: "Pago",
+  estornado: "Estornado",
+};
+export const PEDIDO_STATUS_PAGAMENTO_COLOR: Record<PedidoStatusPagamento, string> = {
+  aguardando: "bg-amber-100 text-amber-700",
+  pago: "bg-emerald-100 text-emerald-700",
+  estornado: "bg-rose-100 text-rose-700",
+};
+export const PEDIDO_STATUS_PAGAMENTO_EMOJI: Record<PedidoStatusPagamento, string> = {
+  aguardando: "⏳", pago: "✅", estornado: "↩️",
+};
+export const PEDIDO_STATUS_PAGAMENTO_ORDER: PedidoStatusPagamento[] = ["aguardando", "pago", "estornado"];
+
+export const PEDIDO_STATUS_ENTREGA_LABELS: Record<PedidoStatusEntrega, string> = {
+  preparando: "Preparando",
+  enviado: "Enviado",
+  entregue: "Entregue",
+};
+export const PEDIDO_STATUS_ENTREGA_COLOR: Record<PedidoStatusEntrega, string> = {
+  preparando: "bg-slate-100 text-slate-600",
+  enviado: "bg-blue-100 text-blue-700",
+  entregue: "bg-emerald-100 text-emerald-700",
+};
+export const PEDIDO_STATUS_ENTREGA_EMOJI: Record<PedidoStatusEntrega, string> = {
+  preparando: "📦", enviado: "🚚", entregue: "✅",
+};
+export const PEDIDO_STATUS_ENTREGA_ORDER: PedidoStatusEntrega[] = ["preparando", "enviado", "entregue"];
+
+export const FORMAS_PAGAMENTO = ["Pix", "Cartão de crédito", "Cartão de débito", "Dinheiro", "Boleto"];
+
+export type PedidoResumo = {
+  subtotal: number; desconto: number; frete: number; total: number;
+  custoTotal: number; margem: number; margemPct: number | null;
+};
+
+/** valor/custo de cada item já são o total da linha (não unitário). */
+export function summarizePedido(
+  itens: { valor: number; custo: number }[],
+  pedido: { desconto: number; frete: number }
+): PedidoResumo {
+  const subtotal   = itens.reduce((a, i) => a + i.valor, 0);
+  const custoTotal = itens.reduce((a, i) => a + (i.custo ?? 0), 0);
+  const total  = subtotal - pedido.desconto + pedido.frete;
+  const margem = subtotal - pedido.desconto - custoTotal;
+  const margemPct = subtotal > 0 ? Math.round((margem / subtotal) * 100) : null;
+  return { subtotal, desconto: pedido.desconto, frete: pedido.frete, total, custoTotal, margem, margemPct };
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
 // CALENDÁRIO — promoções, eventos e novidades planejados (tabela
 // eventos_calendario), opcionalmente direcionados a uma lista ou a um
 // segmento de ticket.
