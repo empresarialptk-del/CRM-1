@@ -1,7 +1,7 @@
 import { toast } from "sonner";
 import { Link, NavLink, Outlet, useNavigate } from "react-router-dom";
 import { useFollowupNotifications } from "@/hooks/useFollowupNotifications";
-import { Phone, Users, LogOut, Headphones, Activity, Kanban, History, Award, Search, X, TrendingDown, Settings, MapPin, ClipboardList, Home, ShieldCheck, Globe } from "lucide-react";
+import { Phone, Users, LogOut, Headphones, Activity, Kanban, History, Award, Search, X, TrendingDown, Settings, MapPin, ClipboardList, Home, ShieldCheck } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -201,9 +201,6 @@ export default function AppLayout() {
           </div>
           <NavLink to="/leads" className={({ isActive }) => `${navItem} ${isActive ? active : ""}`}>
             <Users className="h-4 w-4" /> Leads
-          </NavLink>
-          <NavLink to="/leads-captura" className={({ isActive }) => `${navItem} ${isActive ? active : ""}`}>
-            <Globe className="h-4 w-4" /> Leads do Site
           </NavLink>
           <NavLink to="/crm" className={({ isActive }) => `${navItem} ${isActive ? active : ""}`}>
             <Kanban className="h-4 w-4" /> CRM Kanban

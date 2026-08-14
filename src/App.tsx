@@ -16,7 +16,6 @@ import Settings from "./pages/Settings.tsx";
 import HistoricoAlteracoes from "./pages/HistoricoAlteracoes.tsx";
 import Pipeline from "./pages/Pipeline.tsx";
 import Home from "./pages/Home.tsx";
-import LeadsCaptura from "./pages/LeadsCaptura.tsx";
 import AppLayout from "./components/AppLayout.tsx";
 import NotFound from "./pages/NotFound.tsx";
 
@@ -35,7 +34,6 @@ const App = () => (
             <Route path="/home"                  element={<Home />} />
             <Route path="/dialer"                element={<Dialer />} />
             <Route path="/leads"                 element={<Leads />} />
-            <Route path="/leads-captura"         element={<LeadsCaptura />} />
             <Route path="/crm"                   element={<CRM />} />
             <Route path="/historico"             element={<CallHistory />} />
             <Route path="/dashboard"             element={<MyDashboard />} />
