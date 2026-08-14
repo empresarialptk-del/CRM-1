@@ -4,11 +4,16 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent } from "@/components/ui/card";
 import { loadProfile } from "@/lib/profile";
-import { formatPhone, FUNNEL_STAGES, FUNNEL_STAGE, STATUS_LABELS } from "@/lib/crm";
 import {
-  Phone, CalendarDays, Clock, ChevronRight, PhoneCall,
+  formatPhone, formatCurrency,
+  LEAD_FUNNEL_COLUMNS, LEAD_STATUS_LOST, LEAD_STATUS_LABELS, getLeadFunnelColumn,
+  MENSAGEM_STATUS_CONTATO_LABELS, MENSAGEM_STATUS_CONTATO_COLOR, MENSAGEM_STATUS_CONTATO_EMOJI,
+  type MensagemStatusContato,
+} from "@/lib/crm";
+import {
+  MessageCircle, CalendarDays, ChevronRight,
   Zap, AlertTriangle, CheckCircle2, TrendingUp, Bell,
-  PhoneMissed, RefreshCw, Target, Trophy,
+  RefreshCw, Target, ShoppingBag, History, Gem, Kanban,
 } from "lucide-react";
 
 // ── Tipos ─────────────────────────────────────────────────────────────────────
@@ -40,38 +45,9 @@ function fmtTime(iso: string) {
   return d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
 }
 
-function fmtDateShort(iso: string) {
-  const d = new Date(iso);
-  return d.toLocaleDateString("pt-BR", { weekday: "short", day: "2-digit", month: "2-digit" });
-}
-
-function diffMinutes(iso: string) {
-  return Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
-}
-
-function fmtDur(sec: number) {
-  const m = Math.floor(sec / 60);
-  return m < 60 ? `${m}min` : `${Math.floor(m/60)}h${m%60 > 0 ? `${m%60}min` : ""}`;
-}
-
 function isFimDeSemana(): boolean {
   const d = new Date().getDay(); // 0 = domingo, 6 = sábado
   return d === 0 || d === 6;
-}
-
-function proximosDias(n: number): { label: string; iso: string }[] {
-  const dias = [];
-  const hoje = new Date();
-  for (let i = 1; i <= 14 && dias.length < n; i++) {
-    const d = new Date(hoje);
-    d.setDate(hoje.getDate() + i);
-    d.setHours(0, 0, 0, 0);
-    dias.push({
-      label: d.toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long" }),
-      iso: d.toISOString().slice(0, 10),
-    });
-  }
-  return dias;
 }
 
 // ── Componente ────────────────────────────────────────────────────────────────
@@ -81,168 +57,128 @@ export default function Home() {
   const profile    = loadProfile();
   const { texto, emoji } = greeting(profile.nome);
 
-  const [loading, setLoading]         = useState(true);
-  const [calls, setCalls]             = useState({ total: 0, positivos: 0, durSec: 0, visitas: 0 });
-  const [visitasHoje, setVisitasHoje]         = useState<Lead[]>([]);
-  const [proximasVisitas, setProximasVisitas] = useState<Lead[]>([]);
+  const [loading, setLoading]     = useState(true);
+  const [msgStats, setMsgStats]   = useState({ enviadas: 0, respondidas: 0, taxaResposta: 0 });
+  const [vendas, setVendas]       = useState({ qtd: 0, valor: 0 });
+  const [funil, setFunil]         = useState<Record<string, number>>({});
   const [followupsHoje, setFollowupsHoje]     = useState<Lead[]>([]);
-  const [vencidos, setVencidos]       = useState<Lead[]>([]); // followup vencido
-  const [faltaram, setFaltaram]       = useState<Lead[]>([]); // visita_faltou + visita_cancelada
-  const [semData, setSemData]         = useState<number>(0);  // visita_pendente sem data
-  const [posVisita, setPosVisita]     = useState<number>(0);  // F→N aguardando ação
-  const [funil, setFunil]             = useState<Record<string, number>>({});
+  const [proximosFollowups, setProximosFollowups] = useState<Lead[]>([]);
+  const [vencidos, setVencidos]   = useState<Lead[]>([]);
+  const [semRetorno, setSemRetorno] = useState<(Lead & { statusContato: MensagemStatusContato })[]>([]);
   const fds = isFimDeSemana();
 
   const load = useCallback(async () => {
     if (!user) return;
     setLoading(true);
 
-    const hoje     = new Date(); hoje.setHours(0,0,0,0);
-    const fimHoje  = new Date(); fimHoje.setHours(23,59,59,999);
-    const agora    = new Date();
+    const hoje    = new Date(); hoje.setHours(0,0,0,0);
+    const fimHoje = new Date(); fimHoje.setHours(23,59,59,999);
+    const em14dias = new Date(Date.now() + 14 * 86400000);
 
     const [
-      { data: callsData },
-      { data: visitasData },
-      { data: proximasData },
+      { data: msgHojeData },
+      { data: comprasHojeData },
       { data: followupsData },
+      { data: proximosData },
       { data: vencidosData },
-      { data: faltaramData },
-      { count: semDataCount },
-      { count: posVisitaCount },
-      { data: funilData },
+      { data: msgTodasData },
     ] = await Promise.all([
-      // Ligações de hoje
-      supabase.from("calls")
-        .select("outcome,duracao_segundos")
+      // Mensagens enviadas por mim hoje
+      supabase.from("mensagens")
+        .select("status_contato")
         .eq("atendente_id", user.id)
-        .gte("started_at", hoje.toISOString()),
+        .gte("enviada_em", hoje.toISOString()),
 
-      // Visitas de hoje (agendadas)
+      // Vendas de hoje (todo o time)
+      supabase.from("compras")
+        .select("valor")
+        .gte("data_compra", hoje.toISOString())
+        .lte("data_compra", fimHoje.toISOString()),
+
+      // Follow-ups de hoje
       supabase.from("leads")
         .select("id,nome,telefone,status,proximo_followup,observacoes")
-        .in("status", ["visita_agendada","visita_confirmada","visita_remarcada"])
-        .gte("proximo_followup", hoje.toISOString())
-        .lte("proximo_followup", fimHoje.toISOString())
-        .order("proximo_followup", { ascending: true }),
-
-      // Próximas visitas (amanhã em diante, próximos 14 dias)
-      supabase.from("leads")
-        .select("id,nome,telefone,status,proximo_followup,observacoes")
-        .in("status", ["visita_agendada","visita_confirmada","visita_remarcada"])
-        .gt("proximo_followup", fimHoje.toISOString())
-        .lte("proximo_followup", new Date(Date.now() + 14 * 86400000).toISOString())
-        .order("proximo_followup", { ascending: true })
-        .limit(10),
-
-      // Follow-ups de hoje — apenas leads de contato, nunca visitas agendadas
-      supabase.from("leads")
-        .select("id,nome,telefone,status,proximo_followup,observacoes")
-        .in("status", ["retornar","respondeu","mensagem_zap","interesse","visita_pendente","nao_atendeu","novo"])
+        .not("status", "in", `(${LEAD_STATUS_LOST.join(",")})`)
         .gte("proximo_followup", hoje.toISOString())
         .lte("proximo_followup", fimHoje.toISOString())
         .order("proximo_followup", { ascending: true })
         .limit(8),
 
-      // Follow-ups VENCIDOS — só leads de contato (não visitas!)
+      // Próximos follow-ups (até 14 dias)
       supabase.from("leads")
         .select("id,nome,telefone,status,proximo_followup,observacoes")
-        .in("status", ["retornar","respondeu","mensagem_zap","nao_atendeu","interesse","visita_pendente","novo"])
+        .not("status", "in", `(${LEAD_STATUS_LOST.join(",")})`)
+        .gt("proximo_followup", fimHoje.toISOString())
+        .lte("proximo_followup", em14dias.toISOString())
+        .order("proximo_followup", { ascending: true })
+        .limit(10),
+
+      // Follow-ups vencidos
+      supabase.from("leads")
+        .select("id,nome,telefone,status,proximo_followup,observacoes")
+        .not("status", "in", `(${LEAD_STATUS_LOST.join(",")})`)
         .lt("proximo_followup", hoje.toISOString())
         .not("proximo_followup", "is", null)
         .order("proximo_followup", { ascending: true })
         .limit(5),
 
-      // Não vieram / cancelaram
-      supabase.from("leads")
-        .select("id,nome,telefone,status,proximo_followup,observacoes")
-        .in("status", ["visita_faltou","visita_cancelada"])
-        .order("updated_at", { ascending: false })
-        .limit(5),
-
-      // Quer visitar mas sem data — count exato
-      supabase.from("leads")
-        .select("*", { count: "exact", head: true })
-        .eq("status", "visita_pendente"),
-
-      // Pós-visita F→N aguardando ação — count exato
-      supabase.from("leads")
-        .select("*", { count: "exact", head: true })
-        .in("status", ["visitou","proposta","envio_documentos","cpf_analisado","credito_aprovado","contrato_gerado","contrato_assinado","boleto_pago","repasse"]),
-
-      // Distribuição do funil — RPC que retorna counts agrupados (sem limite)
-      supabase.rpc("get_leads_by_status"),
+      // Última mensagem de cada lead — pra achar quem ficou sem retorno
+      supabase.from("mensagens")
+        .select("lead_id,status_contato,enviada_em")
+        .order("enviada_em", { ascending: false }),
     ]);
 
-    // Stats de ligações
-    const POSITIVOS = new Set(["interesse","visita_pendente","visita_agendada","visita_confirmada","visitou","envio_documentos","cpf_analisado","credito_aprovado","contrato_gerado","contrato_assinado","boleto_pago","repasse","registro","respondeu","mensagem_zap"]);
-    const VISITA_OUTCOMES = new Set(["visita_agendada","visita_confirmada","visitou"]);
-    const cs = callsData ?? [];
-    setCalls({
-      total:     cs.length,
-      positivos: cs.filter((c: any) => POSITIVOS.has(c.outcome)).length,
-      visitas:   cs.filter((c: any) => VISITA_OUTCOMES.has(c.outcome)).length,
-      durSec:    cs.reduce((a: number, c: any) => a + (c.duracao_segundos ?? 0), 0),
+    const msgsHoje = msgHojeData ?? [];
+    const respondidas = msgsHoje.filter((m: any) => m.status_contato === "respondida").length;
+    setMsgStats({
+      enviadas: msgsHoje.length,
+      respondidas,
+      taxaResposta: msgsHoje.length ? Math.round((respondidas / msgsHoje.length) * 100) : 0,
     });
 
-    setVisitasHoje((visitasData ?? []) as Lead[]);
-    setProximasVisitas((proximasData ?? []) as Lead[]);
+    const compras = comprasHojeData ?? [];
+    setVendas({ qtd: compras.length, valor: compras.reduce((a: number, c: any) => a + c.valor, 0) });
+
     setFollowupsHoje((followupsData ?? []) as Lead[]);
+    setProximosFollowups((proximosData ?? []) as Lead[]);
     setVencidos((vencidosData ?? []) as Lead[]);
-    setFaltaram((faltaramData ?? []) as Lead[]);
-    setSemData(semDataCount ?? 0);
-    setPosVisita(posVisitaCount ?? 0);
 
-    // ── Funil cumulativo — lógica idêntica ao Pipeline ───────────────────────
-    // Cada lead conta 1 em CADA etapa que já passou ou está agora.
-    // Lead em G conta em A, B, C, D, E, F, G (mas não em H, I...)
-    const LOST_S = ["sem_interesse","nao_quer_mais","perdido","ignorado",
-      "numero_errado","numero_bloqueado","ja_comprou","comprou_carro","quer_casa"];
+    // ── Leads sem retorno (última mensagem marcada como "sem_retorno") ──────
+    const lastByLead = new Map<string, MensagemStatusContato>();
+    for (const m of (msgTodasData ?? []) as { lead_id: string; status_contato: MensagemStatusContato }[]) {
+      if (!lastByLead.has(m.lead_id)) lastByLead.set(m.lead_id, m.status_contato);
+    }
+    const semRetornoIds = Array.from(lastByLead.entries()).filter(([, s]) => s === "sem_retorno").map(([id]) => id).slice(0, 5);
+    if (semRetornoIds.length > 0) {
+      const { data: leadsSemRetorno } = await supabase.from("leads")
+        .select("id,nome,telefone,status,proximo_followup,observacoes")
+        .in("id", semRetornoIds);
+      setSemRetorno(((leadsSemRetorno ?? []) as Lead[]).map(l => ({ ...l, statusContato: "sem_retorno" as MensagemStatusContato })));
+    } else {
+      setSemRetorno([]);
+    }
 
-    const STAGE_MAP_H: Record<string, string> = {
-      novo:"A", nao_atendeu:"A",
-      retornar:"B", respondeu:"B", mensagem_zap:"B",
-      interesse:"C",
-      visita_pendente:"D", visita:"D",
-      visita_agendada:"E", visita_confirmada:"E", visita_faltou:"E",
-      visita_cancelada:"E", visita_remarcada:"E", agendado:"E",
-      visitou:"F", proposta:"F", convertido:"F",
-      envio_documentos:"G", envio_doc:"G", proposta_aceita:"G",
-      cpf_analisado:"H", analise_credito:"H",
-      credito_aprovado:"I", aprovacao_credito:"I",
-      contrato_gerado:"J",
-      contrato_assinado:"K", chaves_entregues:"K",
-      boleto_pago:"L", repasse:"M", registro:"N",
+    // ── Distribuição por etapa do funil (contagem direta, todos os leads) ──
+    const fetchAllStatuses = async () => {
+      let all: string[] = [];
+      let from = 0;
+      const size = 1000;
+      while (true) {
+        const { data, error } = await supabase.from("leads").select("status").range(from, from + size - 1);
+        if (error || !data || data.length === 0) break;
+        all = [...all, ...data.map((r: any) => r.status as string)];
+        if (data.length < size) break;
+        from += size;
+      }
+      return all;
     };
-
-    const STAGE_ORDER_H = ["A","B","C","D","E","F","G","H","I","J","K","L","M","N"];
-
-    // RPC retorna [{status, count}] de TODOS os leads
-    const rpcRows = (funilData ?? []) as { status: string; count: number }[];
-
-    // Mapa status → count
-    const statusCount: Record<string, number> = {};
-    for (const row of rpcRows) {
-      statusCount[row.status] = Number(row.count);
-    }
-
-    // Mapa etapa → contagem direta (só quem está naquela etapa agora)
-    const stageCount: Record<string, number> = {};
-    for (const [status, cnt] of Object.entries(statusCount)) {
-      if (LOST_S.includes(status)) continue;
-      const stage = STAGE_MAP_H[status] ?? "A";
-      stageCount[stage] = (stageCount[stage] ?? 0) + cnt;
-    }
-
-    // Calcular cumulativo: etapa X = soma de todos que estão em X ou além
+    const statuses = await fetchAllStatuses();
     const map: Record<string, number> = {};
-    for (let i = 0; i < STAGE_ORDER_H.length; i++) {
-      const key = STAGE_ORDER_H[i];
-      // Soma todos os leads que estão nesta etapa ou em etapas posteriores
-      map[key] = STAGE_ORDER_H.slice(i)
-        .reduce((a, k) => a + (stageCount[k] ?? 0), 0);
+    for (const s of statuses) {
+      const col = getLeadFunnelColumn(s);
+      if (!col || col.key === "perdido") continue;
+      map[col.key] = (map[col.key] ?? 0) + 1;
     }
-
     setFunil(map);
 
     setLoading(false);
@@ -250,11 +186,9 @@ export default function Home() {
 
   useEffect(() => { load(); }, [load]);
 
-  const metaLig   = profile.metaLigacoes ?? 80;
-  const metaVisit = profile.metaVisitas  ?? 3;
-  const pctLig    = Math.min(100, Math.round((calls.total / metaLig) * 100));
-  const pctVisit  = Math.min(100, Math.round((visitasHoje.length / metaVisit) * 100));
-  const urgentes  = vencidos.length + faltaram.length;
+  const metaMsg = profile.metaLigacoes ?? 80;
+  const pctMsg  = Math.min(100, Math.round((msgStats.enviadas / metaMsg) * 100));
+  const urgentes = vencidos.length + semRetorno.length;
 
   if (loading) return (
     <div className="p-6 max-w-5xl mx-auto space-y-4">
@@ -298,7 +232,7 @@ export default function Home() {
               {new Date().getDay() === 6 ? "Sábado" : "Domingo"} — dia de descanso
             </p>
             <p className="text-xs text-blue-700 mt-0.5">
-              Sem ligações hoje. Se precisar, use o dia para confirmar visitas agendadas via WhatsApp.
+              Se precisar, aproveite o dia pra planejar os próximos envios e promoções no Calendário.
             </p>
           </div>
         </div>
@@ -316,21 +250,21 @@ export default function Home() {
                 <div className="text-xs text-rose-700 mt-0.5">
                   {vencidos.slice(0,2).map(l => cleanName(l.nome)).join(", ")}
                   {vencidos.length > 2 ? ` +${vencidos.length - 2}` : ""}
-                  {" · Clique para ligar"}
+                  {" · Clique para enviar mensagem"}
                 </div>
               </div>
             </button>
           )}
-          {faltaram.length > 0 && (
-            <button onClick={() => navigate("/leads")}
+          {semRetorno.length > 0 && (
+            <button onClick={() => navigate("/relacionamento")}
               className="flex items-start gap-3 p-4 rounded-xl bg-amber-50 border border-amber-200 hover:bg-amber-100 transition-colors text-left w-full">
-              <PhoneMissed className="h-5 w-5 text-amber-600 shrink-0 mt-0.5"/>
+              <AlertTriangle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5"/>
               <div>
-                <div className="font-bold text-amber-800 text-sm">{faltaram.length} precisam de retorno</div>
+                <div className="font-bold text-amber-800 text-sm">{semRetorno.length} lead{semRetorno.length > 1 ? "s" : ""} sem retorno</div>
                 <div className="text-xs text-amber-700 mt-0.5">
-                  {faltaram.slice(0,2).map(l => cleanName(l.nome)).join(", ")}
-                  {faltaram.length > 2 ? ` +${faltaram.length - 2}` : ""}
-                  {" · Ver leads"}
+                  {semRetorno.slice(0,2).map(l => cleanName(l.nome)).join(", ")}
+                  {semRetorno.length > 2 ? ` +${semRetorno.length - 2}` : ""}
+                  {" · Ver relacionamento"}
                 </div>
               </div>
             </button>
@@ -342,26 +276,26 @@ export default function Home() {
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
           {
-            icon: <Phone className="h-5 w-5"/>,
-            label: "Ligações hoje", value: calls.total,
-            meta: metaLig, pct: pctLig,
+            icon: <MessageCircle className="h-5 w-5"/>,
+            label: "Mensagens hoje", value: msgStats.enviadas,
+            meta: metaMsg, pct: pctMsg,
             color: "text-blue-600", bg: "bg-blue-50", bar: "bg-blue-500",
           },
           {
-            icon: <CalendarDays className="h-5 w-5"/>,
-            label: "Visitas hoje", value: visitasHoje.length,
-            meta: metaVisit, pct: pctVisit,
-            color: "text-emerald-600", bg: "bg-emerald-50", bar: "bg-emerald-500",
+            icon: <CheckCircle2 className="h-5 w-5"/>,
+            label: "Respondidas hoje", value: msgStats.respondidas,
+            meta: null, pct: null,
+            color: "text-emerald-600", bg: "bg-emerald-50", bar: "",
           },
           {
             icon: <TrendingUp className="h-5 w-5"/>,
-            label: "Resultados positivos", value: calls.positivos,
+            label: "Taxa de resposta", value: `${msgStats.taxaResposta}%`,
             meta: null, pct: null,
             color: "text-violet-600", bg: "bg-violet-50", bar: "",
           },
           {
-            icon: <Clock className="h-5 w-5"/>,
-            label: "Tempo em call", value: calls.durSec > 0 ? fmtDur(calls.durSec) : "—",
+            icon: <ShoppingBag className="h-5 w-5"/>,
+            label: "Vendas hoje", value: vendas.qtd > 0 ? formatCurrency(vendas.valor) : "—",
             meta: null, pct: null,
             color: "text-amber-600", bg: "bg-amber-50", bar: "",
           },
@@ -390,109 +324,76 @@ export default function Home() {
         ))}
       </div>
 
-      {/* ── Funil resumido A→N ────────────────────────────────────────────── */}
+      {/* ── Funil resumido ────────────────────────────────────────────────── */}
       <Card className="shadow-card">
         <CardContent className="p-4">
           <div className="flex items-center justify-between mb-3">
             <div className="font-semibold text-sm flex items-center gap-2">
               <Target className="h-4 w-4 text-muted-foreground"/> Funil atual
             </div>
-            <button onClick={() => navigate("/pipeline")}
+            <button onClick={() => navigate("/crm")}
               className="text-xs text-primary hover:underline flex items-center gap-1">
-              Ver pipeline <ChevronRight className="h-3 w-3"/>
+              Ver Kanban <ChevronRight className="h-3 w-3"/>
             </button>
           </div>
-          <div className="grid grid-cols-7 gap-1.5">
-            {FUNNEL_STAGES.filter(s => ["A","B","C","D","E","F","G"].includes(s.key)).map(stage => (
-              <button key={stage.key} onClick={() => navigate("/crm")}
+          <div className="grid grid-cols-3 sm:grid-cols-5 lg:grid-cols-9 gap-1.5">
+            {LEAD_FUNNEL_COLUMNS.map(col => (
+              <button key={col.key} onClick={() => navigate("/crm")}
                 className="flex flex-col items-center gap-1 p-2 rounded-xl hover:bg-muted transition-colors"
-                style={{ backgroundColor: (funil[stage.key] ?? 0) > 0 ? stage.light : undefined }}>
-                <span className="text-base">{stage.emoji}</span>
+                style={{ backgroundColor: (funil[col.key] ?? 0) > 0 ? col.light : undefined }}>
+                <span className="text-base">{col.emoji}</span>
                 <span className="font-black text-lg tabular-nums leading-none"
-                  style={{ color: (funil[stage.key] ?? 0) > 0 ? stage.color : "#94a3b8" }}>
-                  {funil[stage.key] ?? 0}
+                  style={{ color: (funil[col.key] ?? 0) > 0 ? col.color : "#94a3b8" }}>
+                  {funil[col.key] ?? 0}
                 </span>
-                <span className="text-[9px] font-bold" style={{ color: stage.color }}>{stage.key}</span>
-                <span className="text-[9px] text-muted-foreground text-center leading-tight hidden sm:block">{stage.label}</span>
+                <span className="text-[9px] text-muted-foreground text-center leading-tight">{col.label}</span>
               </button>
             ))}
-          </div>
-
-          {/* Indicadores pós-visita */}
-          <div className="flex gap-3 mt-3 pt-3 border-t flex-wrap">
-            {posVisita > 0 && (
-              <button onClick={() => navigate("/crm")}
-                className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 transition-colors">
-                <Trophy className="h-3.5 w-3.5 text-emerald-600"/>
-                <span className="text-xs font-bold text-emerald-700">{posVisita} em pós-venda (F→N)</span>
-              </button>
-            )}
-            {semData > 0 && (
-              <button onClick={() => navigate("/crm")}
-                className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-orange-50 border border-orange-200 hover:bg-orange-100 transition-colors">
-                <AlertTriangle className="h-3.5 w-3.5 text-orange-600"/>
-                <span className="text-xs font-bold text-orange-700">{semData} leads sem próximo passo definido</span>
-              </button>
-            )}
           </div>
         </CardContent>
       </Card>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
 
-        {/* ── Visitas de hoje ───────────────────────────────────────────── */}
+        {/* ── Sem retorno ───────────────────────────────────────────────── */}
         <Card className="shadow-card">
           <CardContent className="p-4">
             <div className="flex items-center justify-between mb-3">
               <div className="font-semibold text-sm flex items-center gap-2">
-                <CalendarDays className="h-4 w-4 text-emerald-600"/>
-                Visitas de hoje
-                <span className="text-xs font-bold px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700">
-                  {visitasHoje.length}
+                <AlertTriangle className="h-4 w-4 text-amber-600"/>
+                Sem retorno
+                <span className="text-xs font-bold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700">
+                  {semRetorno.length}
                 </span>
               </div>
-              <button onClick={() => navigate("/leads")}
+              <button onClick={() => navigate("/relacionamento")}
                 className="text-xs text-primary hover:underline flex items-center gap-1">
-                Ver todas <ChevronRight className="h-3 w-3"/>
+                Ver todos <ChevronRight className="h-3 w-3"/>
               </button>
             </div>
 
-            {visitasHoje.length === 0 ? (
+            {semRetorno.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground text-sm">
-                <CalendarDays className="h-8 w-8 mx-auto mb-2 opacity-30"/>
-                Nenhuma visita agendada para hoje
+                <CheckCircle2 className="h-8 w-8 mx-auto mb-2 opacity-30"/>
+                Ninguém marcado como "sem retorno" no momento
               </div>
             ) : (
               <div className="space-y-2">
-                {visitasHoje.map(lead => {
-                  const passou = lead.proximo_followup && new Date(lead.proximo_followup) < new Date();
-                  return (
-                    <div key={lead.id}
-                      className={`flex items-center gap-3 p-3 rounded-xl border transition-colors ${passou ? "bg-rose-50 border-rose-200" : "bg-muted/30 border-transparent"}`}>
-                      <div className={`h-8 w-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${passou ? "bg-rose-100 text-rose-700" : "bg-emerald-100 text-emerald-700"}`}>
-                        {passou ? "⏰" : "✅"}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-semibold text-sm truncate">{lead.nome}</p>
-                        <p className="text-xs text-muted-foreground">{formatPhone(lead.telefone)}</p>
-                      </div>
-                      {lead.proximo_followup && (
-                        <div className="text-right shrink-0">
-                          <div className={`text-sm font-bold tabular-nums ${passou ? "text-rose-600" : "text-emerald-600"}`}>
-                            {fmtTime(lead.proximo_followup)}
-                          </div>
-                          <div className="text-[10px] text-muted-foreground">
-                            {STATUS_LABELS[lead.status] ?? lead.status}
-                          </div>
-                        </div>
-                      )}
-                      <button onClick={() => navigate(`/dialer?lead=${lead.id}`)}
-                        className="h-8 w-8 rounded-lg flex items-center justify-center bg-background border hover:bg-muted transition-colors shrink-0">
-                        <PhoneCall className="h-3.5 w-3.5 text-muted-foreground"/>
-                      </button>
+                {semRetorno.map(lead => (
+                  <div key={lead.id} className="flex items-center gap-3 p-3 rounded-xl border border-transparent bg-muted/30 hover:bg-muted/50 transition-colors">
+                    <div className={`h-8 w-8 rounded-full flex items-center justify-center text-xs shrink-0 ${MENSAGEM_STATUS_CONTATO_COLOR.sem_retorno}`}>
+                      {MENSAGEM_STATUS_CONTATO_EMOJI.sem_retorno}
                     </div>
-                  );
-                })}
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold text-sm truncate">{lead.nome}</p>
+                      <p className="text-xs text-muted-foreground">{formatPhone(lead.telefone)}</p>
+                    </div>
+                    <button onClick={() => navigate(`/dialer?lead=${lead.id}`)}
+                      className="h-8 w-8 rounded-lg flex items-center justify-center bg-background border hover:bg-muted transition-colors shrink-0">
+                      <MessageCircle className="h-3.5 w-3.5 text-muted-foreground"/>
+                    </button>
+                  </div>
+                ))}
               </div>
             )}
           </CardContent>
@@ -511,7 +412,7 @@ export default function Home() {
               </div>
               <button onClick={() => navigate("/dialer")}
                 className="text-xs text-primary hover:underline flex items-center gap-1">
-                Discar <ChevronRight className="h-3 w-3"/>
+                Enviar <ChevronRight className="h-3 w-3"/>
               </button>
             </div>
 
@@ -523,21 +424,21 @@ export default function Home() {
             ) : (
               <div className="space-y-2">
                 {followupsHoje.map(lead => {
-                  const stage = FUNNEL_STAGES.find(s => s.key === FUNNEL_STAGE[lead.status]);
+                  const col = getLeadFunnelColumn(lead.status);
                   const passou = lead.proximo_followup && new Date(lead.proximo_followup) < new Date();
                   return (
                     <div key={lead.id}
                       className="flex items-center gap-3 p-3 rounded-xl border border-transparent bg-muted/30 hover:bg-muted/50 transition-colors">
-                      {stage && (
-                        <div className="h-8 w-8 rounded-full flex items-center justify-center text-xs font-black shrink-0"
-                          style={{ backgroundColor: stage.light, color: stage.color }}>
-                          {stage.key}
+                      {col && (
+                        <div className="h-8 w-8 rounded-full flex items-center justify-center text-sm shrink-0"
+                          style={{ backgroundColor: col.light }}>
+                          {col.emoji}
                         </div>
                       )}
                       <div className="flex-1 min-w-0">
                         <p className="font-semibold text-sm truncate">{lead.nome}</p>
                         <p className="text-xs text-muted-foreground truncate">
-                          {STATUS_LABELS[lead.status] ?? lead.status}
+                          {LEAD_STATUS_LABELS[lead.status as keyof typeof LEAD_STATUS_LABELS] ?? lead.status}
                           {lead.observacoes ? ` · ${lead.observacoes.slice(0, 30)}…` : ""}
                         </p>
                       </div>
@@ -548,7 +449,7 @@ export default function Home() {
                       )}
                       <button onClick={() => navigate(`/dialer?lead=${lead.id}`)}
                         className="h-8 w-8 rounded-lg flex items-center justify-center bg-background border hover:bg-muted transition-colors shrink-0">
-                        <PhoneCall className="h-3.5 w-3.5 text-muted-foreground"/>
+                        <MessageCircle className="h-3.5 w-3.5 text-muted-foreground"/>
                       </button>
                     </div>
                   );
@@ -560,28 +461,28 @@ export default function Home() {
 
       </div>
 
-      {/* ── Próximas visitas ──────────────────────────────────────────────── */}
-      {proximasVisitas.length > 0 && (
+      {/* ── Próximos follow-ups ─────────────────────────────────────────────── */}
+      {proximosFollowups.length > 0 && (
         <Card className="shadow-card">
           <CardContent className="p-4">
             <div className="flex items-center justify-between mb-3">
               <div className="font-semibold text-sm flex items-center gap-2">
                 <CalendarDays className="h-4 w-4 text-violet-600"/>
-                Próximas visitas
+                Próximos follow-ups
                 <span className="text-xs font-bold px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-700">
-                  {proximasVisitas.length}
+                  {proximosFollowups.length}
                 </span>
               </div>
               <button onClick={() => navigate("/leads")}
                 className="text-xs text-primary hover:underline flex items-center gap-1">
-                Ver todas <ChevronRight className="h-3 w-3"/>
+                Ver todos <ChevronRight className="h-3 w-3"/>
               </button>
             </div>
 
             {/* Agrupar por dia */}
             {(() => {
               const grupos: Record<string, Lead[]> = {};
-              for (const lead of proximasVisitas) {
+              for (const lead of proximosFollowups) {
                 const dia = lead.proximo_followup?.slice(0, 10) ?? "sem-data";
                 if (!grupos[dia]) grupos[dia] = [];
                 grupos[dia].push(lead);
@@ -596,18 +497,18 @@ export default function Home() {
                         {d.toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "short" })}
                       </span>
                       {isDiaFds && <span className="text-[10px] bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded-full font-bold">fim de semana</span>}
-                      <span className="text-[10px] text-muted-foreground">{leadsGrupo.length} visita{leadsGrupo.length > 1 ? "s" : ""}</span>
+                      <span className="text-[10px] text-muted-foreground">{leadsGrupo.length} lead{leadsGrupo.length > 1 ? "s" : ""}</span>
                     </div>
                     <div className="space-y-1.5">
                       {leadsGrupo.map(lead => (
                         <div key={lead.id}
                           className="flex items-center gap-3 p-2.5 rounded-xl bg-muted/30 hover:bg-muted/50 transition-colors">
-                          <div className={`h-7 w-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${isDiaFds ? "bg-blue-100 text-blue-700" : "bg-violet-100 text-violet-700"}`}>
-                            {isDiaFds ? "🏖️" : "📅"}
+                          <div className="h-7 w-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0 bg-violet-100 text-violet-700">
+                            📅
                           </div>
                           <div className="flex-1 min-w-0">
                             <p className="font-semibold text-sm truncate">{lead.nome}</p>
-                            <p className="text-xs text-muted-foreground">{STATUS_LABELS[lead.status] ?? lead.status}</p>
+                            <p className="text-xs text-muted-foreground">{LEAD_STATUS_LABELS[lead.status as keyof typeof LEAD_STATUS_LABELS] ?? lead.status}</p>
                           </div>
                           {lead.proximo_followup && (
                             <div className="text-right shrink-0">
@@ -618,7 +519,7 @@ export default function Home() {
                           )}
                           <button onClick={() => navigate(`/dialer?lead=${lead.id}`)}
                             className="h-7 w-7 rounded-lg flex items-center justify-center bg-background border hover:bg-muted transition-colors shrink-0">
-                            <PhoneCall className="h-3 w-3 text-muted-foreground"/>
+                            <MessageCircle className="h-3 w-3 text-muted-foreground"/>
                           </button>
                         </div>
                       ))}
@@ -635,12 +536,14 @@ export default function Home() {
       <Card className="shadow-card">
         <CardContent className="p-4">
           <p className="text-sm font-semibold mb-3">Ações rápidas</p>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
             {[
-              { icon: <Zap className="h-5 w-5"/>,          label: "Mensagens",      sub: "Enviar WhatsApp",        path: "/dialer",        color: "text-primary",     bg: "bg-primary/10"    },
-              { icon: <CalendarDays className="h-5 w-5"/>,  label: "Histórico",      sub: "Mensagens enviadas",     path: "/historico",      color: "text-emerald-600", bg: "bg-emerald-50"    },
-              { icon: <Phone className="h-5 w-5"/>,         label: "Pipeline",       sub: "Funil de vendas",        path: "/pipeline",       color: "text-violet-600",  bg: "bg-violet-50"     },
-              { icon: <TrendingUp className="h-5 w-5"/>,    label: "CRM",            sub: "Kanban de leads",        path: "/crm",            color: "text-blue-600",    bg: "bg-blue-50"       },
+              { icon: <Zap className="h-5 w-5"/>,          label: "Mensagens",      sub: "Enviar WhatsApp",        path: "/dialer",         color: "text-primary",     bg: "bg-primary/10"    },
+              { icon: <History className="h-5 w-5"/>,      label: "Histórico",      sub: "Mensagens enviadas",     path: "/historico",      color: "text-emerald-600", bg: "bg-emerald-50"    },
+              { icon: <Gem className="h-5 w-5"/>,           label: "Relacionamento", sub: "Segmentos e contato",    path: "/relacionamento", color: "text-teal-600",    bg: "bg-teal-50"       },
+              { icon: <CalendarDays className="h-5 w-5"/>,  label: "Calendário",     sub: "Promoções e eventos",    path: "/calendario",     color: "text-orange-600",  bg: "bg-orange-50"     },
+              { icon: <TrendingUp className="h-5 w-5"/>,    label: "Pipeline",       sub: "Funil de vendas",        path: "/pipeline",       color: "text-violet-600",  bg: "bg-violet-50"     },
+              { icon: <Kanban className="h-5 w-5"/>,        label: "CRM",            sub: "Kanban de leads",        path: "/crm",            color: "text-blue-600",    bg: "bg-blue-50"       },
             ].map(a => (
               <button key={a.path} onClick={() => navigate(a.path)}
                 className="flex items-center gap-3 p-3 rounded-xl border bg-background hover:bg-muted transition-colors text-left">
